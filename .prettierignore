@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Prisma generated files
+prisma/migrations/
+
+# Public assets that should not be reformatted
+public/sw.js
+
+# Generated files
+*.min.js
+*.min.css
+
+# Environment files
+.env
+.env.*
+
+# Package manager lock files (let the tool own them)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

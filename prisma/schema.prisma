@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  avatar    String?
+  currency  String   @default("USD")
+  timezone  String   @default("UTC")
+  isPro     Boolean  @default(false)
+  phone     String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  groupMembers  GroupMember[]
+  paidExpenses  Expense[]      @relation("PaidBy")
+  expenseSplits ExpenseSplit[]
+  sentPayments  Payment[]      @relation("Payer")
+  receivedPayments Payment[]   @relation("Receiver")
+  friendsAsA    Friendship[]   @relation("UserA")
+  friendsAsB    Friendship[]   @relation("UserB")
+  notifications Notification[]
+  activities    Activity[]
+  comments      Comment[]
+  recurringTemplates RecurringTemplate[]
+
+  @@map("users")
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  avatar      String?
+  currency    String   @default("USD")
+  category    String   @default("other")
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members    GroupMember[]
+  expenses   Expense[]
+  payments   Payment[]
+  activities Activity[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id       String   @id @default(cuid())
+  userId   String
+  groupId  String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@map("group_members")
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  userA User @relation("UserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("UserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@map("friendships")
+}
+
+model Expense {
+  id               String    @id @default(cuid())
+  description      String
+  amount           Float
+  currency         String    @default("USD")
+  category         String    @default("general")
+  date             DateTime  @default(now())
+  groupId          String?
+  paidById         String
+  splitType        String    @default("equal")
+  notes            String?
+  receiptUrl       String?
+  isRecurring      Boolean   @default(false)
+  recurringId      String?
+  exchangeRate     Float?
+  originalAmount   Float?
+  originalCurrency String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  group      Group?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  paidBy     User         @relation("PaidBy", fields: [paidById], references: [id])
+  splits     ExpenseSplit[]
+  activities Activity[]
+  comments   Comment[]
+  attachments Attachment[]
+  recurring  RecurringTemplate? @relation(fields: [recurringId], references: [id])
+
+  @@map("expenses")
+}
+
+model ExpenseSplit {
+  id         String  @id @default(cuid())
+  expenseId  String
+  userId     String
+  amount     Float
+  percentage Float?
+  shares     Int?
+  isPaid     Boolean @default(false)
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+  @@map("expense_splits")
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  payerId    String
+  receiverId String
+  amount     Float
+  currency   String   @default("USD")
+  groupId    String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  payer    User   @relation("Payer", fields: [payerId], references: [id])
+  receiver User   @relation("Receiver", fields: [receiverId], references: [id])
+  group    Group? @relation(fields: [groupId], references: [id])
+
+  @@map("payments")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  data      Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  userId      String
+  groupId     String?
+  expenseId   String?
+  type        String
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group   Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  expense Expense? @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+
+  @@map("activities")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  expenseId String
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  expenseId String
+  url       String
+  filename  String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model RecurringTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  description String
+  amount      Float
+  currency    String   @default("USD")
+  category    String   @default("general")
+  splitType   String   @default("equal")
+  interval    String
+  nextRunAt   DateTime
+  isActive    Boolean  @default(true)
+  groupId     String?
+  data        Json?
+  createdAt   DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@map("recurring_templates")
+}
