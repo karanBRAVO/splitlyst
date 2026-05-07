@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { UserPlus, Plus, Search, Trash2, DollarSign } from 'lucide-react'
+import { UserPlus, Plus, Search, Trash2, DollarSign, ArrowRightLeft } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Avatar } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -69,25 +69,29 @@ export default function FriendsPage() {
     }
   }
 
-  const filtered = friends.filter((f: any) =>
-    f.friend.name.toLowerCase().includes(search.toLowerCase()) ||
-    f.friend.email.toLowerCase().includes(search.toLowerCase())
+  const filtered = friends.filter(
+    (f: any) =>
+      f.friend.name.toLowerCase().includes(search.toLowerCase()) ||
+      f.friend.email.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
     <div>
       <Header title="Friends" />
-      <div className="max-w-3xl mx-auto px-4 py-6 lg:px-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mx-auto max-w-3xl px-4 py-6 lg:px-6">
+        <div className="mb-6 flex items-center justify-between">
           <h1 className="page-title hidden lg:block">Friends</h1>
-          <button onClick={() => setShowAdd(true)} className="btn btn-primary btn-md gap-2 ml-auto lg:ml-0">
-            <Plus className="w-4 h-4" />
+          <button
+            onClick={() => setShowAdd(true)}
+            className="btn btn-primary btn-md ml-auto gap-2 lg:ml-0"
+          >
+            <Plus className="h-4 w-4" />
             Add Friend
           </button>
         </div>
 
         <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -100,9 +104,11 @@ export default function FriendsPage() {
           <SkeletonList count={4} />
         ) : filtered.length === 0 ? (
           <EmptyState
-            icon={<UserPlus className="w-8 h-8" />}
+            icon={<UserPlus className="h-8 w-8" />}
             title={search ? 'No friends found' : 'No friends yet'}
-            description={search ? 'Try a different search' : 'Add friends to start splitting expenses'}
+            description={
+              search ? 'Try a different search' : 'Add friends to start splitting expenses'
+            }
             action={
               !search && (
                 <button onClick={() => setShowAdd(true)} className="btn btn-primary btn-md">
@@ -116,32 +122,51 @@ export default function FriendsPage() {
             {filtered.map((f: any) => {
               const net = balances[f.friend.id] || 0
               return (
-                <div key={f.id} className="card p-4 flex items-center gap-3">
+                <div key={f.id} className="card flex items-center gap-3 p-4">
                   <Avatar src={f.friend.avatar} name={f.friend.name} id={f.friend.id} size="md" />
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="font-medium text-gray-900">{f.friend.name}</div>
                     <div className="text-xs text-gray-500">{f.friend.email}</div>
                   </div>
                   {Math.abs(net) > 0.01 && (
-                    <div className={cn('text-sm font-semibold text-right', net > 0 ? 'text-brand-600' : 'text-red-500')}>
+                    <div
+                      className={cn(
+                        'text-right text-sm font-semibold',
+                        net > 0 ? 'text-brand-600' : 'text-red-500'
+                      )}
+                    >
                       {net > 0 ? 'owes you' : 'you owe'}
                       <br />
                       {formatCurrency(Math.abs(net), session?.user.currency)}
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Link
                       href={`/expenses/new?friendId=${f.friend.id}`}
                       className="btn btn-ghost btn-sm p-2"
                       title="Add expense"
                     >
-                      <DollarSign className="w-4 h-4" />
+                      <DollarSign className="h-4 w-4" />
                     </Link>
+                    {Math.abs(net) > 0.01 && (
+                      <Link
+                        href={
+                          net < 0
+                            ? `/expenses/new?type=payment&receiverId=${f.friend.id}&amount=${Math.abs(net).toFixed(2)}`
+                            : `/expenses/new?type=payment&receiverId=${session?.user?.id}&amount=${Math.abs(net).toFixed(2)}&payerId=${f.friend.id}`
+                        }
+                        className="btn btn-primary btn-sm gap-1.5"
+                        title="Settle up"
+                      >
+                        <ArrowRightLeft className="h-3.5 w-3.5" />
+                        Settle
+                      </Link>
+                    )}
                     <button
                       onClick={() => setRemovingId(f.id)}
-                      className="btn btn-ghost btn-sm p-2 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      className="btn btn-ghost btn-sm p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>

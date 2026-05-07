@@ -1,14 +1,13 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Activity, Bell, CheckCheck } from 'lucide-react'
 import { Header } from '@/components/layout/header'
-import { Avatar } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonList } from '@/components/ui/loading'
 import { formatDateRelative } from '@/lib/utils'
-import { toast } from '@/components/ui/toaster'
 
 const activityIcons: Record<string, string> = {
   expense_added: '💸',
@@ -44,87 +43,113 @@ export default function ActivityPage() {
     },
   })
 
-  const unreadCount = notifications.filter((n: any) => !n.read).length
+  const unreadCount = notifications.filter((n: { read: boolean }) => !n.read).length
+
+  // Auto-mark all as read when the activity page is opened and notifications are loaded
+  useEffect(() => {
+    if (unreadCount > 0) {
+      markAllRead.mutate()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadCount > 0])
 
   return (
     <div>
       <Header title="Activity" />
-      <div className="max-w-3xl mx-auto px-4 py-6 lg:px-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mx-auto max-w-3xl px-4 py-6 lg:px-6">
+        <div className="mb-6 flex items-center justify-between">
           <h1 className="page-title hidden lg:block">Activity</h1>
           {unreadCount > 0 && (
             <button
               onClick={() => markAllRead.mutate()}
               className="btn btn-ghost btn-sm gap-2 text-brand-600"
             >
-              <CheckCheck className="w-4 h-4" />
+              <CheckCheck className="h-4 w-4" />
               Mark all read
             </button>
           )}
         </div>
 
         {/* Notifications */}
-        {notifications.filter((n: any) => !n.read).length > 0 && (
+        {unreadCount > 0 && (
           <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Bell className="w-4 h-4 text-brand-500" />
+            <div className="mb-3 flex items-center gap-2">
+              <Bell className="h-4 w-4 text-brand-500" />
               <h2 className="text-sm font-semibold text-gray-700">Notifications</h2>
               <span className="badge badge-green">{unreadCount} new</span>
             </div>
             <div className="space-y-2">
-              {notifications.filter((n: any) => !n.read).map((n: any) => (
-                <div key={n.id} className="card p-4 border-l-4 border-brand-500">
-                  <div className="font-medium text-sm text-gray-900">{n.title}</div>
-                  <div className="text-sm text-gray-600 mt-0.5">{n.message}</div>
-                  <div className="text-xs text-gray-400 mt-1">{formatDateRelative(n.createdAt)}</div>
-                </div>
-              ))}
+              {notifications
+                .filter((n: { read: boolean }) => !n.read)
+                .map((n: { id: string; title: string; message: string; createdAt: string }) => (
+                  <div key={n.id} className="card border-l-4 border-brand-500 p-4">
+                    <div className="text-sm font-medium text-gray-900">{n.title}</div>
+                    <div className="mt-0.5 text-sm text-gray-600">{n.message}</div>
+                    <div className="mt-1 text-xs text-gray-400">
+                      {formatDateRelative(n.createdAt)}
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         )}
 
         {/* Activity feed */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Recent Activity</h2>
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Recent Activity</h2>
           {isLoading ? (
             <SkeletonList count={5} />
           ) : activities.length === 0 ? (
             <EmptyState
-              icon={<Activity className="w-8 h-8" />}
+              icon={<Activity className="h-8 w-8" />}
               title="No activity yet"
               description="Expense activity from you and your groups will appear here"
             />
           ) : (
             <div className="space-y-1">
-              {activities.map((activity: any) => (
-                <div key={activity.id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                  <div className="text-xl shrink-0 mt-0.5">
-                    {activityIcons[activity.type] || '📋'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800">{activity.description}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {activity.group && (
-                        <Link
-                          href={`/groups/${activity.group.id}`}
-                          className="text-xs text-brand-600 hover:text-brand-700"
-                        >
-                          {activity.group.name}
-                        </Link>
-                      )}
-                      <span className="text-xs text-gray-400">{formatDateRelative(activity.createdAt)}</span>
+              {activities.map(
+                (activity: {
+                  id: string
+                  type: string
+                  description: string
+                  createdAt: string
+                  group?: { id: string; name: string }
+                  expense?: { id: string }
+                }) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-start gap-3 rounded-xl p-3 transition-colors hover:bg-gray-50"
+                  >
+                    <div className="mt-0.5 shrink-0 text-xl">
+                      {activityIcons[activity.type] || '📋'}
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-800">{activity.description}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        {activity.group && (
+                          <Link
+                            href={`/groups/${activity.group.id}`}
+                            className="text-xs text-brand-600 hover:text-brand-700"
+                          >
+                            {activity.group.name}
+                          </Link>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {formatDateRelative(activity.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                    {activity.expense && (
+                      <Link
+                        href={`/expenses/${activity.expense.id}`}
+                        className="shrink-0 text-xs text-brand-600 hover:text-brand-700"
+                      >
+                        View
+                      </Link>
+                    )}
                   </div>
-                  {activity.expense && (
-                    <Link
-                      href={`/expenses/${activity.expense.id}`}
-                      className="text-xs text-brand-600 hover:text-brand-700 shrink-0"
-                    >
-                      View
-                    </Link>
-                  )}
-                </div>
-              ))}
+                )
+              )}
             </div>
           )}
         </div>
