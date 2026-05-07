@@ -25,7 +25,8 @@ export async function POST(req: NextRequest, props: Props) {
     const { email } = addSchema.parse(await req.json())
 
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
-    if (!user) return NextResponse.json({ error: 'User not found with this email' }, { status: 404 })
+    if (!user)
+      return NextResponse.json({ error: 'User not found with this email' }, { status: 404 })
 
     const existing = await prisma.groupMember.findUnique({
       where: { userId_groupId: { userId: user.id, groupId } },
@@ -36,6 +37,20 @@ export async function POST(req: NextRequest, props: Props) {
       data: { userId: user.id, groupId, role: 'member' },
       include: { user: { select: { id: true, name: true, avatar: true, email: true } } },
     })
+
+    // Auto-friend the new member with all existing group members
+    const existingMembers = await prisma.groupMember.findMany({
+      where: { groupId, userId: { not: user.id } },
+      select: { userId: true },
+    })
+    for (const existing of existingMembers) {
+      const [a, b] = [existing.userId, user.id].sort()
+      await prisma.friendship.upsert({
+        where: { userAId_userBId: { userAId: a, userBId: b } },
+        update: {},
+        create: { userAId: a, userBId: b, status: 'accepted' },
+      })
+    }
 
     await prisma.activity.create({
       data: {

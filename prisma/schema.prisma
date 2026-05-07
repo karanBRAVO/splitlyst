@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -21,17 +22,18 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  groupMembers  GroupMember[]
-  paidExpenses  Expense[]      @relation("PaidBy")
-  expenseSplits ExpenseSplit[]
-  sentPayments  Payment[]      @relation("Payer")
-  receivedPayments Payment[]   @relation("Receiver")
-  friendsAsA    Friendship[]   @relation("UserA")
-  friendsAsB    Friendship[]   @relation("UserB")
-  notifications Notification[]
-  activities    Activity[]
-  comments      Comment[]
+  groupMembers       GroupMember[]
+  paidExpenses       Expense[]      @relation("PaidBy")
+  expenseSplits      ExpenseSplit[]
+  sentPayments       Payment[]      @relation("Payer")
+  receivedPayments   Payment[]      @relation("Receiver")
+  friendsAsA         Friendship[]   @relation("UserA")
+  friendsAsB         Friendship[]   @relation("UserB")
+  notifications      Notification[]
+  activities         Activity[]
+  comments           Comment[]
   recurringTemplates RecurringTemplate[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
 }
@@ -204,6 +206,19 @@ model Attachment {
   expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
 
   @@map("attachments")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
 }
 
 model RecurringTemplate {

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Minus, Plus, Users, ChevronDown } from 'lucide-react'
+import { Minus, Plus } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Avatar } from '@/components/ui/avatar'
 import { toast } from '@/components/ui/toaster'
@@ -41,14 +41,17 @@ export default function NewExpensePage() {
   const presetReceiverId = searchParams.get('receiverId')
   const isPayment = searchParams.get('type') === 'payment'
 
-  const [participants, setParticipants] = useState<Array<{
-    userId: string
-    name: string
-    avatar?: string | null
-    percentage?: number
-    shares?: number
-    customAmount?: number
-  }>>([])
+  const [participants, setParticipants] = useState<
+    Array<{
+      userId: string
+      name: string
+      avatar?: string | null
+      percentage?: number
+      shares?: number
+      customAmount?: number
+    }>
+  >([])
+  const initializedRef = useRef(false)
 
   const { data: group } = useQuery({
     queryKey: ['group', groupId],
@@ -61,7 +64,12 @@ export default function NewExpensePage() {
     queryFn: () => fetch('/api/friends').then((r) => r.json()),
   })
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       currency: session?.user?.currency || 'USD',
@@ -72,39 +80,47 @@ export default function NewExpensePage() {
     },
   })
 
-  // Initialize participants
+  // Initialize participants once when the required data is available.
+  // useRef guard prevents re-running on every render (friends/session are new
+  // references each render even when the data hasn't changed).
   useEffect(() => {
-    if (session?.user) {
-      const me = { userId: session.user.id, name: session.user.name!, avatar: session.user.image }
+    if (!session?.user) return
+    if (groupId && !group?.members) return // wait for group to load
+    if (friendId && friends.length === 0) return // wait for friends to load
+    if (initializedRef.current) return
 
-      if (groupId && group?.members) {
-        setParticipants(group.members.map((m: any) => ({
+    initializedRef.current = true
+    const me = { userId: session.user.id, name: session.user.name!, avatar: session.user.image }
+
+    if (groupId && group?.members) {
+      setParticipants(
+        group.members.map((m: any) => ({
           userId: m.user.id,
           name: m.user.name,
           avatar: m.user.avatar,
-        })))
-      } else if (friendId) {
-        const friend = friends.find((f: any) => f.friend.id === friendId)
-        if (friend) {
-          setParticipants([me, { userId: friend.friend.id, name: friend.friend.name, avatar: friend.friend.avatar }])
-        }
-      } else if (presetReceiverId) {
-        // For settle up flow
-        setParticipants([me])
+        }))
+      )
+    } else if (friendId) {
+      const friend = friends.find((f: any) => f.friend.id === friendId)
+      if (friend) {
+        setParticipants([
+          me,
+          { userId: friend.friend.id, name: friend.friend.name, avatar: friend.friend.avatar },
+        ])
       } else {
         setParticipants([me])
       }
+    } else {
+      setParticipants([me])
     }
   }, [session, group, friendId, friends, groupId, presetReceiverId])
 
   const splitType = watch('splitType')
   const amountStr = watch('amount')
   const totalAmount = parseFloat(amountStr) || 0
-  const paidById = watch('paidById')
 
-  const equalSplit = participants.length > 0
-    ? roundToTwoDecimals(totalAmount / participants.length)
-    : 0
+  const equalSplit =
+    participants.length > 0 ? roundToTwoDecimals(totalAmount / participants.length) : 0
 
   const totalCustom = participants.reduce((s, p) => s + (p.customAmount || 0), 0)
   const totalPercentage = participants.reduce((s, p) => s + (p.percentage || 0), 0)
@@ -179,7 +195,10 @@ export default function NewExpensePage() {
       splits = participants.map((p) => ({ userId: p.userId }))
     } else if (splitType === 'percentage') {
       if (Math.abs(totalPercentage - 100) > 0.01) {
-        toast({ type: 'error', title: `Percentages must sum to 100% (currently ${totalPercentage}%)` })
+        toast({
+          type: 'error',
+          title: `Percentages must sum to 100% (currently ${totalPercentage}%)`,
+        })
         return
       }
       splits = participants.map((p) => ({ userId: p.userId, percentage: p.percentage || 0 }))
@@ -187,7 +206,10 @@ export default function NewExpensePage() {
       splits = participants.map((p) => ({ userId: p.userId, shares: p.shares || 1 }))
     } else {
       if (Math.abs(totalCustom - amount) > 0.02) {
-        toast({ type: 'error', title: `Custom amounts must sum to total (${formatCurrency(amount, data.currency)})` })
+        toast({
+          type: 'error',
+          title: `Custom amounts must sum to total (${formatCurrency(amount, data.currency)})`,
+        })
         return
       }
       splits = participants.map((p) => ({ userId: p.userId, amount: p.customAmount || 0 }))
@@ -208,12 +230,23 @@ export default function NewExpensePage() {
     })
   }
 
-  const allMembers = groupId && group?.members
-    ? group.members.map((m: any) => ({ userId: m.user.id, name: m.user.name, avatar: m.user.avatar }))
-    : [
-        ...(session?.user ? [{ userId: session.user.id, name: session.user.name!, avatar: session.user.image }] : []),
-        ...friends.map((f: any) => ({ userId: f.friend.id, name: f.friend.name, avatar: f.friend.avatar })),
-      ]
+  const allMembers =
+    groupId && group?.members
+      ? group.members.map((m: any) => ({
+          userId: m.user.id,
+          name: m.user.name,
+          avatar: m.user.avatar,
+        }))
+      : [
+          ...(session?.user
+            ? [{ userId: session.user.id, name: session.user.name!, avatar: session.user.image }]
+            : []),
+          ...friends.map((f: any) => ({
+            userId: f.friend.id,
+            name: f.friend.name,
+            avatar: f.friend.avatar,
+          })),
+        ]
 
   const toggleParticipant = (member: { userId: string; name: string; avatar?: string | null }) => {
     if (groupId) return // Can't change for group expenses
@@ -230,9 +263,12 @@ export default function NewExpensePage() {
 
   return (
     <div>
-      <Header title={isPayment ? 'Record Payment' : 'Add Expense'} back={groupId ? `/groups/${groupId}` : '/expenses'} />
-      <div className="max-w-lg mx-auto px-4 py-6 lg:px-6">
-        <div className="hidden lg:block mb-6">
+      <Header
+        title={isPayment ? 'Record Payment' : 'Add Expense'}
+        back={groupId ? `/groups/${groupId}` : '/expenses'}
+      />
+      <div className="mx-auto max-w-lg px-4 py-6 lg:px-6">
+        <div className="mb-6 hidden lg:block">
           <h1 className="page-title">{isPayment ? 'Record a Payment' : 'Add an Expense'}</h1>
         </div>
 
@@ -241,8 +277,14 @@ export default function NewExpensePage() {
           {!isPayment && (
             <div>
               <label className="label">Description *</label>
-              <input {...register('description')} className="input" placeholder="e.g. Dinner, Netflix, Rent..." />
-              {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description.message}</p>}
+              <input
+                {...register('description')}
+                className="input"
+                placeholder="e.g. Dinner, Netflix, Rent..."
+              />
+              {errors.description && (
+                <p className="mt-1 text-xs text-red-500">{errors.description.message}</p>
+              )}
             </div>
           )}
 
@@ -251,7 +293,7 @@ export default function NewExpensePage() {
             <label className="label">Amount *</label>
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-400">
                   {CURRENCIES.find((c) => c.code === watch('currency'))?.symbol || '$'}
                 </span>
                 <input
@@ -265,11 +307,13 @@ export default function NewExpensePage() {
               </div>
               <select {...register('currency')} className="input w-24">
                 {CURRENCIES.map((c) => (
-                  <option key={c.code} value={c.code}>{c.code}</option>
+                  <option key={c.code} value={c.code}>
+                    {c.code}
+                  </option>
                 ))}
               </select>
             </div>
-            {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount.message}</p>}
+            {errors.amount && <p className="mt-1 text-xs text-red-500">{errors.amount.message}</p>}
           </div>
 
           {/* Category + Date */}
@@ -279,7 +323,9 @@ export default function NewExpensePage() {
                 <label className="label">Category</label>
                 <select {...register('category')} className="input">
                   {EXPENSE_CATEGORIES.map((c) => (
-                    <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>
+                    <option key={c.value} value={c.value}>
+                      {c.emoji} {c.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -295,7 +341,9 @@ export default function NewExpensePage() {
             <label className="label">Paid by</label>
             <select {...register('paidById')} className="input">
               {participants.map((p) => (
-                <option key={p.userId} value={p.userId}>{p.name}</option>
+                <option key={p.userId} value={p.userId}>
+                  {p.name}
+                </option>
               ))}
             </select>
           </div>
@@ -308,13 +356,20 @@ export default function NewExpensePage() {
                 <div className="grid grid-cols-4 gap-2">
                   {(['equal', 'percentage', 'shares', 'custom'] as SplitType[]).map((type) => (
                     <label key={type} className="cursor-pointer">
-                      <input {...register('splitType')} type="radio" value={type} className="sr-only" />
-                      <div className={cn(
-                        'text-center py-2 rounded-lg border-2 text-xs font-medium transition-all capitalize',
-                        splitType === type
-                          ? 'border-brand-500 bg-brand-50 text-brand-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                      )}>
+                      <input
+                        {...register('splitType')}
+                        type="radio"
+                        value={type}
+                        className="sr-only"
+                      />
+                      <div
+                        className={cn(
+                          'rounded-lg border-2 py-2 text-center text-xs font-medium capitalize transition-all',
+                          splitType === type
+                            ? 'border-brand-500 bg-brand-50 text-brand-700'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        )}
+                      >
                         {type}
                       </div>
                     </label>
@@ -332,23 +387,38 @@ export default function NewExpensePage() {
                     const isSelf = member.userId === session?.user?.id
 
                     return (
-                      <div key={member.userId} className={cn(
-                        'flex items-center gap-3 p-3 rounded-xl border transition-all',
-                        isIn ? 'border-brand-200 bg-brand-50/30' : 'border-gray-200 bg-white opacity-60'
-                      )}>
+                      <div
+                        key={member.userId}
+                        className={cn(
+                          'flex items-center gap-3 rounded-xl border p-3 transition-all',
+                          isIn
+                            ? 'border-brand-200 bg-brand-50/30'
+                            : 'border-gray-200 bg-white opacity-60'
+                        )}
+                      >
                         <button
                           type="button"
                           onClick={() => toggleParticipant(member)}
                           disabled={isSelf || !!groupId}
                           className={cn(
-                            'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all',
-                            isIn ? 'bg-brand-500 border-brand-500' : 'border-gray-300',
-                            (isSelf || !!groupId) && 'opacity-50 cursor-default'
+                            'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-all',
+                            isIn ? 'border-brand-500 bg-brand-500' : 'border-gray-300',
+                            (isSelf || !!groupId) && 'cursor-default opacity-50'
                           )}
                         >
                           {isIn && (
-                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 12 12" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.5 6l2.5 2.5 4.5-4.5" />
+                            <svg
+                              className="h-3 w-3 text-white"
+                              fill="none"
+                              viewBox="0 0 12 12"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M2.5 6l2.5 2.5 4.5-4.5"
+                              />
                             </svg>
                           )}
                         </button>
@@ -358,9 +428,11 @@ export default function NewExpensePage() {
                         </span>
 
                         {isIn && (
-                          <div className="text-sm font-medium text-right shrink-0">
+                          <div className="shrink-0 text-right text-sm font-medium">
                             {splitType === 'equal' && (
-                              <span className="text-gray-700">{formatCurrency(equalSplit, watch('currency'))}</span>
+                              <span className="text-gray-700">
+                                {formatCurrency(equalSplit, watch('currency'))}
+                              </span>
                             )}
                             {splitType === 'percentage' && (
                               <input
@@ -369,25 +441,53 @@ export default function NewExpensePage() {
                                 max="100"
                                 step="1"
                                 value={participant?.percentage || 0}
-                                onChange={(e) => setParticipants(participants.map((p) =>
-                                  p.userId === member.userId ? { ...p, percentage: parseFloat(e.target.value) || 0 } : p
-                                ))}
-                                className="w-16 text-center border border-gray-200 rounded px-2 py-1 text-xs"
+                                onChange={(e) =>
+                                  setParticipants(
+                                    participants.map((p) =>
+                                      p.userId === member.userId
+                                        ? { ...p, percentage: parseFloat(e.target.value) || 0 }
+                                        : p
+                                    )
+                                  )
+                                }
+                                className="w-16 rounded border border-gray-200 px-2 py-1 text-center text-xs"
                                 placeholder="0%"
                               />
                             )}
                             {splitType === 'shares' && (
                               <div className="flex items-center gap-1">
-                                <button type="button" onClick={() => setParticipants(participants.map((p) =>
-                                  p.userId === member.userId ? { ...p, shares: Math.max(1, (p.shares || 1) - 1) } : p
-                                ))} className="w-6 h-6 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100">
-                                  <Minus className="w-3 h-3" />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setParticipants(
+                                      participants.map((p) =>
+                                        p.userId === member.userId
+                                          ? { ...p, shares: Math.max(1, (p.shares || 1) - 1) }
+                                          : p
+                                      )
+                                    )
+                                  }
+                                  className="flex h-6 w-6 items-center justify-center rounded border border-gray-200 hover:bg-gray-100"
+                                >
+                                  <Minus className="h-3 w-3" />
                                 </button>
-                                <span className="w-6 text-center text-xs font-bold">{participant?.shares || 1}</span>
-                                <button type="button" onClick={() => setParticipants(participants.map((p) =>
-                                  p.userId === member.userId ? { ...p, shares: (p.shares || 1) + 1 } : p
-                                ))} className="w-6 h-6 rounded border border-gray-200 flex items-center justify-center hover:bg-gray-100">
-                                  <Plus className="w-3 h-3" />
+                                <span className="w-6 text-center text-xs font-bold">
+                                  {participant?.shares || 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setParticipants(
+                                      participants.map((p) =>
+                                        p.userId === member.userId
+                                          ? { ...p, shares: (p.shares || 1) + 1 }
+                                          : p
+                                      )
+                                    )
+                                  }
+                                  className="flex h-6 w-6 items-center justify-center rounded border border-gray-200 hover:bg-gray-100"
+                                >
+                                  <Plus className="h-3 w-3" />
                                 </button>
                               </div>
                             )}
@@ -397,10 +497,16 @@ export default function NewExpensePage() {
                                 min="0"
                                 step="0.01"
                                 value={participant?.customAmount || 0}
-                                onChange={(e) => setParticipants(participants.map((p) =>
-                                  p.userId === member.userId ? { ...p, customAmount: parseFloat(e.target.value) || 0 } : p
-                                ))}
-                                className="w-20 text-center border border-gray-200 rounded px-2 py-1 text-xs"
+                                onChange={(e) =>
+                                  setParticipants(
+                                    participants.map((p) =>
+                                      p.userId === member.userId
+                                        ? { ...p, customAmount: parseFloat(e.target.value) || 0 }
+                                        : p
+                                    )
+                                  )
+                                }
+                                className="w-20 rounded border border-gray-200 px-2 py-1 text-center text-xs"
                                 placeholder="0.00"
                               />
                             )}
@@ -413,19 +519,25 @@ export default function NewExpensePage() {
 
                 {/* Split summary */}
                 {splitType === 'custom' && totalAmount > 0 && (
-                  <div className={cn(
-                    'mt-2 text-xs text-right font-medium',
-                    Math.abs(totalCustom - totalAmount) < 0.02 ? 'text-brand-600' : 'text-red-500'
-                  )}>
-                    {formatCurrency(totalCustom, watch('currency'))} / {formatCurrency(totalAmount, watch('currency'))}
-                    {Math.abs(totalCustom - totalAmount) > 0.02 && ` (${formatCurrency(totalAmount - totalCustom, watch('currency'))} remaining)`}
+                  <div
+                    className={cn(
+                      'mt-2 text-right text-xs font-medium',
+                      Math.abs(totalCustom - totalAmount) < 0.02 ? 'text-brand-600' : 'text-red-500'
+                    )}
+                  >
+                    {formatCurrency(totalCustom, watch('currency'))} /{' '}
+                    {formatCurrency(totalAmount, watch('currency'))}
+                    {Math.abs(totalCustom - totalAmount) > 0.02 &&
+                      ` (${formatCurrency(totalAmount - totalCustom, watch('currency'))} remaining)`}
                   </div>
                 )}
                 {splitType === 'percentage' && (
-                  <div className={cn(
-                    'mt-2 text-xs text-right font-medium',
-                    Math.abs(totalPercentage - 100) < 0.01 ? 'text-brand-600' : 'text-red-500'
-                  )}>
+                  <div
+                    className={cn(
+                      'mt-2 text-right text-xs font-medium',
+                      Math.abs(totalPercentage - 100) < 0.01 ? 'text-brand-600' : 'text-red-500'
+                    )}
+                  >
                     {totalPercentage}% / 100%
                   </div>
                 )}
@@ -445,11 +557,21 @@ export default function NewExpensePage() {
           )}
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => router.back()} className="btn btn-secondary btn-lg flex-1">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="btn btn-secondary btn-lg flex-1"
+            >
               Cancel
             </button>
             <button type="submit" disabled={isPending} className="btn btn-primary btn-lg flex-1">
-              {isPending ? <Spinner className="w-4 h-4" /> : isPayment ? 'Record Payment' : 'Add Expense'}
+              {isPending ? (
+                <Spinner className="h-4 w-4" />
+              ) : isPayment ? (
+                'Record Payment'
+              ) : (
+                'Add Expense'
+              )}
             </button>
           </div>
         </form>

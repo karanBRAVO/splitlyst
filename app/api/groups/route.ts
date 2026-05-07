@@ -11,7 +11,7 @@ const createSchema = z.object({
   memberEmails: z.array(z.string().email()).optional(),
 })
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await getAuth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Invite additional members by email
+    // Invite additional members by email and auto-friend them with the creator
     if (memberEmails && memberEmails.length > 0) {
       const users = await prisma.user.findMany({
         where: { email: { in: memberEmails.map((e) => e.toLowerCase()) } },
@@ -67,6 +67,18 @@ export async function POST(req: NextRequest) {
           data: users.map((u) => ({ userId: u.id, groupId: group.id, role: 'member' })),
           skipDuplicates: true,
         })
+        // Auto-friend every invited member with the creator and with each other
+        const allIds = [session.user.id, ...users.map((u) => u.id)]
+        for (let i = 0; i < allIds.length; i++) {
+          for (let j = i + 1; j < allIds.length; j++) {
+            const [a, b] = [allIds[i], allIds[j]].sort()
+            await prisma.friendship.upsert({
+              where: { userAId_userBId: { userAId: a, userBId: b } },
+              update: {},
+              create: { userAId: a, userBId: b, status: 'accepted' },
+            })
+          }
+        }
       }
     }
 
