@@ -1,7 +1,5 @@
-import type { Config } from 'prettier'
-
-const config: Config = {
-  // Line length — 100 is a common industry sweet spot (wider than 80, not as extreme as 120)
+/** @type {import('prettier').Config} */
+const config = {
   printWidth: 100,
   tabWidth: 2,
   useTabs: false,
