@@ -1,15 +1,15 @@
-import Link from 'next/link'
-import { Zap, Users, BarChart3, Shield, Smartphone, Globe } from 'lucide-react'
+import Link from 'next/link';
+import { Zap, Users, BarChart3, Shield, Smartphone, Globe } from 'lucide-react';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Nav */}
-      <nav className="border-b border-gray-100 sticky top-0 bg-white/80 backdrop-blur-md z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <nav className="sticky top-0 z-10 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 gradient-brand rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
+            <div className="gradient-brand flex h-8 w-8 items-center justify-center rounded-lg">
+              <Zap className="h-4 w-4 text-white" />
             </div>
             <span className="text-lg font-bold text-gray-900">Splitlyst</span>
           </div>
@@ -25,21 +25,21 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="max-w-6xl mx-auto px-4 pt-20 pb-24 text-center">
-        <div className="inline-flex items-center gap-2 bg-brand-50 text-brand-700 rounded-full px-4 py-1.5 text-sm font-medium mb-8">
-          <Zap className="w-3.5 h-3.5" />
+      <section className="mx-auto max-w-6xl px-4 pt-20 pb-24 text-center">
+        <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand-700">
+          <Zap className="h-3.5 w-3.5" />
           Free to use · No credit card required
         </div>
-        <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 mb-6 leading-tight text-balance">
+        <h1 className="mb-6 text-5xl leading-tight font-extrabold text-balance text-gray-900 md:text-7xl">
           Split expenses.
           <br />
-          <span className="text-transparent bg-clip-text gradient-brand">Stay friends.</span>
+          <span className="gradient-brand bg-clip-text text-transparent">Stay friends.</span>
         </h1>
-        <p className="text-xl text-gray-500 max-w-2xl mx-auto mb-10 text-balance">
+        <p className="mx-auto mb-10 max-w-2xl text-xl text-balance text-gray-500">
           Track shared expenses effortlessly with friends and groups. Split by equal shares,
           percentages, or custom amounts. Settle up in seconds.
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Link href="/register" className="btn btn-primary btn-lg w-full sm:w-auto">
             Start splitting for free
           </Link>
@@ -50,12 +50,12 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section className="bg-gray-50 border-y border-gray-200 py-20">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
+      <section className="border-y border-gray-200 bg-gray-50 py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="mb-12 text-center text-3xl font-bold text-gray-900">
             Everything you need to split fairly
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {[
               {
                 icon: Users,
@@ -95,11 +95,13 @@ export default function LandingPage() {
               },
             ].map((f) => (
               <div key={f.title} className="card p-6">
-                <div className={`w-10 h-10 rounded-xl ${f.color} flex items-center justify-center mb-4`}>
-                  <f.icon className="w-5 h-5" />
+                <div
+                  className={`h-10 w-10 rounded-xl ${f.color} mb-4 flex items-center justify-center`}
+                >
+                  <f.icon className="h-5 w-5" />
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-2">{f.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+                <h3 className="mb-2 font-semibold text-gray-900">{f.title}</h3>
+                <p className="text-sm leading-relaxed text-gray-500">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -107,15 +109,13 @@ export default function LandingPage() {
       </section>
 
       {/* Split types */}
-      <section className="max-w-6xl mx-auto px-4 py-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <section className="mx-auto max-w-6xl px-4 py-20">
+        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Split any way you want
-            </h2>
-            <p className="text-gray-500 mb-8">
-              Not every expense should be split equally. Splitlyst supports four flexible
-              split types to match how you actually share costs.
+            <h2 className="mb-4 text-3xl font-bold text-gray-900">Split any way you want</h2>
+            <p className="mb-8 text-gray-500">
+              Not every expense should be split equally. Splitlyst supports four flexible split
+              types to match how you actually share costs.
             </p>
             <div className="space-y-4">
               {[
@@ -125,9 +125,16 @@ export default function LandingPage() {
                 { type: 'Custom split', desc: 'Enter exact amounts per person' },
               ].map((item) => (
                 <div key={item.type} className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center mt-0.5 shrink-0">
-                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 12 12">
-                      <path d="M10 3L5 8.5 2 5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500">
+                    <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 12 12">
+                      <path
+                        d="M10 3L5 8.5 2 5.5"
+                        stroke="white"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
                     </svg>
                   </div>
                   <div>
@@ -138,9 +145,9 @@ export default function LandingPage() {
               ))}
             </div>
           </div>
-          <div className="card p-6 space-y-3">
-            <div className="text-sm font-medium text-gray-500 mb-2">Sample expense</div>
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+          <div className="card space-y-3 p-6">
+            <div className="mb-2 text-sm font-medium text-gray-500">Sample expense</div>
+            <div className="flex items-center justify-between border-b border-gray-100 py-3">
               <div>
                 <div className="font-semibold text-gray-900">Dinner at Nobu</div>
                 <div className="text-sm text-gray-500">Paid by Alex · Food & Drink</div>
@@ -156,7 +163,7 @@ export default function LandingPage() {
               ].map((p) => (
                 <div key={p.name} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-xs font-semibold text-brand-700">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
                       {p.name[0]}
                     </div>
                     <span className="text-sm text-gray-700">{p.name}</span>
@@ -178,14 +185,15 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="gradient-brand py-20">
-        <div className="max-w-2xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Ready to stop doing the math?
-          </h2>
-          <p className="text-brand-100 mb-8">
+        <div className="mx-auto max-w-2xl px-4 text-center">
+          <h2 className="mb-4 text-3xl font-bold text-white">Ready to stop doing the math?</h2>
+          <p className="mb-8 text-brand-100">
             Join thousands of people who use Splitlyst to keep friendships and finances separate.
           </p>
-          <Link href="/register" className="btn bg-white text-brand-600 hover:bg-brand-50 btn-lg font-semibold">
+          <Link
+            href="/register"
+            className="btn btn-lg bg-white font-semibold text-brand-600 hover:bg-brand-50"
+          >
             Create your free account
           </Link>
         </div>
@@ -193,10 +201,10 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-200 py-8">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 sm:flex-row">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 gradient-brand rounded flex items-center justify-center">
-              <Zap className="w-3 h-3 text-white" />
+            <div className="gradient-brand flex h-6 w-6 items-center justify-center rounded">
+              <Zap className="h-3 w-3 text-white" />
             </div>
             <span className="text-sm font-medium text-gray-600">Splitlyst</span>
           </div>
@@ -206,5 +214,5 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
-  )
+  );
 }

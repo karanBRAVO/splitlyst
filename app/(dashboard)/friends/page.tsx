@@ -1,36 +1,36 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { useSession } from 'next-auth/react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import Link from 'next/link'
-import { UserPlus, Plus, Search, Trash2, DollarSign, ArrowRightLeft } from 'lucide-react'
-import { Header } from '@/components/layout/header'
-import { Avatar } from '@/components/ui/avatar'
-import { EmptyState } from '@/components/ui/empty-state'
-import { SkeletonList } from '@/components/ui/loading'
-import { Modal, ConfirmModal } from '@/components/ui/modal'
-import { formatCurrency } from '@/lib/utils'
-import { toast } from '@/components/ui/toaster'
-import { cn } from '@/lib/utils'
+import { useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
+import { UserPlus, Plus, Search, Trash2, DollarSign, ArrowRightLeft } from 'lucide-react';
+import { Header } from '@/components/layout/header';
+import { Avatar } from '@/components/ui/avatar';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonList } from '@/components/ui/loading';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
+import { formatCurrency } from '@/lib/utils';
+import { toast } from '@/components/ui/toaster';
+import { cn } from '@/lib/utils';
 
 export default function FriendsPage() {
-  const { data: session } = useSession()
-  const queryClient = useQueryClient()
-  const [email, setEmail] = useState('')
-  const [search, setSearch] = useState('')
-  const [showAdd, setShowAdd] = useState(false)
-  const [removingId, setRemovingId] = useState<string | null>(null)
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState('');
+  const [search, setSearch] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const { data: friends = [], isLoading } = useQuery({
     queryKey: ['friends'],
     queryFn: () => fetch('/api/friends').then((r) => r.json()),
-  })
+  });
 
   const { data: balanceData } = useQuery({
     queryKey: ['balances'],
     queryFn: () => fetch('/api/balances').then((r) => r.json()),
-  })
+  });
 
   const addMutation = useMutation({
     mutationFn: (email: string) =>
@@ -39,41 +39,45 @@ export default function FriendsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       }).then(async (r) => {
-        const json = await r.json()
-        if (!r.ok) throw new Error(json.error)
-        return json
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error);
+        return json;
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['friends'] })
-      toast({ type: 'success', title: 'Friend added!' })
-      setShowAdd(false)
-      setEmail('')
+      queryClient.invalidateQueries({ queryKey: ['friends'] });
+      toast({ type: 'success', title: 'Friend added!' });
+      setShowAdd(false);
+      setEmail('');
     },
     onError: (err: Error) => toast({ type: 'error', title: 'Failed', description: err.message }),
-  })
+  });
 
   const removeMutation = useMutation({
     mutationFn: (id: string) =>
       fetch(`/api/friends/${id}`, { method: 'DELETE' }).then((r) => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['friends'] })
-      toast({ type: 'success', title: 'Friend removed' })
-      setRemovingId(null)
+      queryClient.invalidateQueries({ queryKey: ['friends'] });
+      toast({ type: 'success', title: 'Friend removed' });
+      setRemovingId(null);
     },
-  })
+  });
 
-  const balances: Record<string, number> = {}
+  const balances: Record<string, number> = {};
   if (balanceData?.balances) {
     for (const b of balanceData.balances) {
-      balances[b.user.id] = b.net
+      balances[b.user.id] = b.net;
     }
   }
 
+  type FriendEntry = {
+    id: string;
+    friend: { id: string; name: string; email: string; avatar: string | null };
+  };
   const filtered = friends.filter(
-    (f: any) =>
+    (f: FriendEntry) =>
       f.friend.name.toLowerCase().includes(search.toLowerCase()) ||
-      f.friend.email.toLowerCase().includes(search.toLowerCase())
-  )
+      f.friend.email.toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
     <div>
@@ -91,7 +95,7 @@ export default function FriendsPage() {
         </div>
 
         <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -119,8 +123,8 @@ export default function FriendsPage() {
           />
         ) : (
           <div className="space-y-3">
-            {filtered.map((f: any) => {
-              const net = balances[f.friend.id] || 0
+            {filtered.map((f: FriendEntry) => {
+              const net = balances[f.friend.id] || 0;
               return (
                 <div key={f.id} className="card flex items-center gap-3 p-4">
                   <Avatar src={f.friend.avatar} name={f.friend.name} id={f.friend.id} size="md" />
@@ -132,7 +136,7 @@ export default function FriendsPage() {
                     <div
                       className={cn(
                         'text-right text-sm font-semibold',
-                        net > 0 ? 'text-brand-600' : 'text-red-500'
+                        net > 0 ? 'text-brand-600' : 'text-red-500',
                       )}
                     >
                       {net > 0 ? 'owes you' : 'you owe'}
@@ -170,7 +174,7 @@ export default function FriendsPage() {
                     </button>
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
         )}
@@ -219,5 +223,5 @@ export default function FriendsPage() {
         loading={removeMutation.isPending}
       />
     </div>
-  )
+  );
 }

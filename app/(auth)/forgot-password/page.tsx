@@ -1,55 +1,55 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { Mail, ArrowLeft, Copy, CheckCircle } from 'lucide-react'
-import { toast } from '@/components/ui/toaster'
-import { Spinner } from '@/components/ui/loading'
+import { useState } from 'react';
+import Link from 'next/link';
+import { Mail, ArrowLeft, Copy, CheckCircle } from 'lucide-react';
+import { toast } from '@/components/ui/toaster';
+import { Spinner } from '@/components/ui/loading';
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [resetUrl, setResetUrl] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [resetUrl, setResetUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!email) return
-    setLoading(true)
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true);
     try {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
       // resetUrl is returned for self-hosted installs without an email service
-      setResetUrl(data.resetUrl || null)
+      setResetUrl(data.resetUrl || null);
       if (!data.resetUrl) {
         toast({
           type: 'success',
           title: 'Check your email',
           description: 'Reset instructions have been sent.',
-        })
+        });
       }
     } catch (err) {
       toast({
         type: 'error',
         title: 'Error',
         description: err instanceof Error ? err.message : 'Something went wrong',
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const copyLink = () => {
-    if (!resetUrl) return
-    navigator.clipboard.writeText(resetUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+    if (!resetUrl) return;
+    navigator.clipboard.writeText(resetUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (resetUrl) {
     return (
@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
-        <div className="mb-4 flex items-center gap-2 break-all rounded-xl bg-gray-50 p-3">
+        <div className="mb-4 flex items-center gap-2 rounded-xl bg-gray-50 p-3 break-all">
           <span className="flex-1 text-xs text-gray-600">{resetUrl}</span>
           <button
             onClick={copyLink}
@@ -90,7 +90,7 @@ export default function ForgotPasswordPage() {
           Note: In production, configure SMTP to email this link automatically.
         </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -112,7 +112,7 @@ export default function ForgotPasswordPage() {
         <div>
           <label className="label">Email address</label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Mail className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -134,5 +134,5 @@ export default function ForgotPasswordPage() {
         </button>
       </form>
     </div>
-  )
+  );
 }

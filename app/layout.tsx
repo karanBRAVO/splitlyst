@@ -1,13 +1,13 @@
-import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { Providers } from '@/components/providers'
+import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Providers } from '@/components/providers';
 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
   display: 'swap',
-})
+});
 
 export const metadata: Metadata = {
   title: {
@@ -16,7 +16,13 @@ export const metadata: Metadata = {
   },
   description:
     'Split bills, track shared expenses, and settle up with friends and groups — all in one place.',
-  keywords: ['expense splitting', 'bill splitting', 'shared expenses', 'group expenses', 'splitwise alternative'],
+  keywords: [
+    'expense splitting',
+    'bill splitting',
+    'shared expenses',
+    'group expenses',
+    'splitwise alternative',
+  ],
   authors: [{ name: 'Splitlyst' }],
   manifest: '/manifest.json',
   icons: {
@@ -39,7 +45,7 @@ export const metadata: Metadata = {
     description: 'Split bills, track shared expenses, and settle up with friends and groups.',
     siteName: 'Splitlyst',
   },
-}
+};
 
 export const viewport: Viewport = {
   themeColor: '#10b981',
@@ -47,13 +53,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-}
+};
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
       <head>
@@ -79,5 +81,5 @@ export default function RootLayout({
         />
       </body>
     </html>
-  )
+  );
 }

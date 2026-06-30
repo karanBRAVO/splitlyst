@@ -1,13 +1,13 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding database...')
+  console.log('Seeding database...');
 
   // Create demo users
-  const password = await bcrypt.hash('demo1234', 12)
+  const password = await bcrypt.hash('demo1234', 12);
 
   const alice = await prisma.user.upsert({
     where: { email: 'alice@example.com' },
@@ -19,7 +19,7 @@ async function main() {
       currency: 'USD',
       isPro: true,
     },
-  })
+  });
 
   const bob = await prisma.user.upsert({
     where: { email: 'bob@example.com' },
@@ -30,7 +30,7 @@ async function main() {
       password,
       currency: 'USD',
     },
-  })
+  });
 
   const carol = await prisma.user.upsert({
     where: { email: 'carol@example.com' },
@@ -41,19 +41,19 @@ async function main() {
       password,
       currency: 'USD',
     },
-  })
+  });
 
   // Create friendship
   await prisma.friendship.upsert({
     where: { userAId_userBId: { userAId: alice.id, userBId: bob.id } },
     update: {},
     create: { userAId: alice.id, userBId: bob.id, status: 'accepted' },
-  })
+  });
   await prisma.friendship.upsert({
     where: { userAId_userBId: { userAId: alice.id, userBId: carol.id } },
     update: {},
     create: { userAId: alice.id, userBId: carol.id, status: 'accepted' },
-  })
+  });
 
   // Create a group
   const group = await prisma.group.create({
@@ -70,7 +70,7 @@ async function main() {
         ],
       },
     },
-  })
+  });
 
   // Create expenses
   const dinner = await prisma.expense.create({
@@ -90,7 +90,7 @@ async function main() {
         ],
       },
     },
-  })
+  });
 
   await prisma.expense.create({
     data: {
@@ -109,7 +109,7 @@ async function main() {
         ],
       },
     },
-  })
+  });
 
   await prisma.expense.create({
     data: {
@@ -128,7 +128,7 @@ async function main() {
         ],
       },
     },
-  })
+  });
 
   // Personal expense between alice and bob
   await prisma.expense.create({
@@ -146,7 +146,7 @@ async function main() {
         ],
       },
     },
-  })
+  });
 
   // Activities
   await prisma.activity.createMany({
@@ -165,20 +165,20 @@ async function main() {
         description: 'Alice Johnson added "Dinner at Le Jules Verne" (€180.00)',
       },
     ],
-  })
+  });
 
-  console.log('✅ Seed completed!')
-  console.log('\nDemo accounts:')
-  console.log('  alice@example.com / demo1234 (Pro)')
-  console.log('  bob@example.com / demo1234')
-  console.log('  carol@example.com / demo1234')
+  console.log('✅ Seed completed!');
+  console.log('\nDemo accounts:');
+  console.log('  alice@example.com / demo1234 (Pro)');
+  console.log('  bob@example.com / demo1234');
+  console.log('  carol@example.com / demo1234');
 }
 
 main()
   .catch((e) => {
-    console.error(e)
-    process.exit(1)
+    console.error(e);
+    process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect()
-  })
+    await prisma.$disconnect();
+  });

@@ -1,38 +1,38 @@
-'use client'
+'use client';
 
-import { useState, useRef, useEffect } from 'react'
-import { cn } from '@/lib/utils'
+import { useState, useRef, useEffect } from 'react';
+import { cn } from '@/lib/utils';
 
 interface DropdownItem {
-  label: string
-  icon?: React.ReactNode
-  onClick?: () => void
-  href?: string
-  variant?: 'default' | 'danger'
-  disabled?: boolean
-  separator?: boolean
+  label?: string;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  href?: string;
+  variant?: 'default' | 'danger';
+  disabled?: boolean;
+  separator?: boolean;
 }
 
 interface DropdownProps {
-  trigger: React.ReactNode
-  items: DropdownItem[]
-  align?: 'left' | 'right'
-  className?: string
+  trigger: React.ReactNode;
+  items: DropdownItem[];
+  align?: 'left' | 'right';
+  className?: string;
 }
 
 export function Dropdown({ trigger, items, align = 'right', className }: DropdownProps) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
+        setOpen(false);
       }
-    }
-    if (open) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+    };
+    if (open) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
 
   return (
     <div ref={ref} className={cn('relative', className)}>
@@ -40,36 +40,36 @@ export function Dropdown({ trigger, items, align = 'right', className }: Dropdow
       {open && (
         <div
           className={cn(
-            'absolute top-full mt-1 z-50 bg-white rounded-xl shadow-lg border border-gray-200 py-1 min-w-[160px] animate-slide-down',
-            align === 'right' ? 'right-0' : 'left-0'
+            'absolute top-full z-50 mt-1 min-w-[160px] animate-slide-down rounded-xl border border-gray-200 bg-white py-1 shadow-lg',
+            align === 'right' ? 'right-0' : 'left-0',
           )}
         >
           {items.map((item, i) =>
             item.separator ? (
-              <div key={i} className="border-t border-gray-100 my-1" />
+              <div key={i} className="my-1 border-t border-gray-100" />
             ) : (
               <button
                 key={i}
                 disabled={item.disabled}
                 onClick={() => {
-                  item.onClick?.()
-                  setOpen(false)
+                  item.onClick?.();
+                  setOpen(false);
                 }}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left',
+                  'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
                   item.variant === 'danger'
                     ? 'text-red-600 hover:bg-red-50'
                     : 'text-gray-700 hover:bg-gray-50',
-                  item.disabled && 'opacity-50 cursor-not-allowed'
+                  item.disabled && 'cursor-not-allowed opacity-50',
                 )}
               >
-                {item.icon && <span className="w-4 h-4 shrink-0">{item.icon}</span>}
+                {item.icon && <span className="h-4 w-4 shrink-0">{item.icon}</span>}
                 {item.label}
               </button>
-            )
+            ),
           )}
         </div>
       )}
     </div>
-  )
+  );
 }

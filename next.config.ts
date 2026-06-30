@@ -1,4 +1,4 @@
-import type { NextConfig } from 'next'
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -19,8 +19,8 @@ const nextConfig: NextConfig = {
           { key: 'Service-Worker-Allowed', value: '/' },
         ],
       },
-    ]
+    ];
   },
-}
+};
 
-export default nextConfig
+export default nextConfig;

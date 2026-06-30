@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { z } from 'zod'
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
 
 const updateSchema = z.object({
   description: z.string().min(1).max(200).optional(),
@@ -11,15 +11,15 @@ const updateSchema = z.object({
   date: z.string().datetime().optional(),
   notes: z.string().max(500).optional().nullable(),
   receiptUrl: z.string().url().optional().nullable(),
-})
+});
 
-type Props = { params: Promise<{ id: string }> }
+type Props = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, props: Props) {
-  const session = await getAuth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { id } = await props.params
+  const { id } = await props.params;
 
   const expense = await prisma.expense.findUnique({
     where: { id },
@@ -33,9 +33,9 @@ export async function GET(req: NextRequest, props: Props) {
       attachments: true,
       group: { select: { id: true, name: true, avatar: true } },
     },
-  })
+  });
 
-  if (!expense) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!expense) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const hasAccess =
     expense.paidById === session.user.id ||
@@ -43,28 +43,28 @@ export async function GET(req: NextRequest, props: Props) {
     (expense.groupId &&
       (await prisma.groupMember.findUnique({
         where: { userId_groupId: { userId: session.user.id, groupId: expense.groupId } },
-      })))
+      })));
 
-  if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  return NextResponse.json(expense)
+  return NextResponse.json(expense);
 }
 
 export async function PATCH(req: NextRequest, props: Props) {
-  const session = await getAuth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { id } = await props.params
+  const { id } = await props.params;
 
-  const expense = await prisma.expense.findUnique({ where: { id } })
-  if (!expense) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const expense = await prisma.expense.findUnique({ where: { id } });
+  if (!expense) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (expense.paidById !== session.user.id) {
-    return NextResponse.json({ error: 'Only the payer can edit this expense' }, { status: 403 })
+    return NextResponse.json({ error: 'Only the payer can edit this expense' }, { status: 403 });
   }
 
   try {
-    const body = await req.json()
-    const data = updateSchema.parse(body)
+    const body = await req.json();
+    const data = updateSchema.parse(body);
     const updated = await prisma.expense.update({
       where: { id },
       data: { ...data, ...(data.date ? { date: new Date(data.date) } : {}) },
@@ -73,7 +73,7 @@ export async function PATCH(req: NextRequest, props: Props) {
         splits: { include: { user: { select: { id: true, name: true, avatar: true } } } },
         group: { select: { id: true, name: true } },
       },
-    })
+    });
 
     await prisma.activity.create({
       data: {
@@ -83,27 +83,27 @@ export async function PATCH(req: NextRequest, props: Props) {
         type: 'expense_updated',
         description: `${session.user.name} updated "${updated.description}"`,
       },
-    })
+    });
 
-    return NextResponse.json(updated)
+    return NextResponse.json(updated);
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
+      return NextResponse.json({ error: err.issues[0].message }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest, props: Props) {
-  const session = await getAuth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { id } = await props.params
+  const { id } = await props.params;
 
-  const expense = await prisma.expense.findUnique({ where: { id } })
-  if (!expense) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const expense = await prisma.expense.findUnique({ where: { id } });
+  if (!expense) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (expense.paidById !== session.user.id) {
-    return NextResponse.json({ error: 'Only the payer can delete this expense' }, { status: 403 })
+    return NextResponse.json({ error: 'Only the payer can delete this expense' }, { status: 403 });
   }
 
   await prisma.activity.create({
@@ -113,8 +113,8 @@ export async function DELETE(req: NextRequest, props: Props) {
       type: 'expense_deleted',
       description: `${session.user.name} deleted "${expense.description}"`,
     },
-  })
+  });
 
-  await prisma.expense.delete({ where: { id } })
-  return NextResponse.json({ success: true })
+  await prisma.expense.delete({ where: { id } });
+  return NextResponse.json({ success: true });
 }

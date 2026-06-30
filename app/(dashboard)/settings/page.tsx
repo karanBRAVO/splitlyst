@@ -1,55 +1,55 @@
-'use client'
+'use client';
 
-import { useState, useRef } from 'react'
-import { useSession } from 'next-auth/react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { signOut } from 'next-auth/react'
-import { useForm } from 'react-hook-form'
-import { Camera, Zap, LogOut, Shield, Globe, User } from 'lucide-react'
-import { Header } from '@/components/layout/header'
-import { Avatar } from '@/components/ui/avatar'
-import { Spinner } from '@/components/ui/loading'
-import { toast } from '@/components/ui/toaster'
-import { CURRENCIES } from '@/types'
-import { cn } from '@/lib/utils'
+import { useState, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { signOut } from 'next-auth/react';
+import { useForm } from 'react-hook-form';
+import { Camera, Zap, LogOut, Shield, Globe, User } from 'lucide-react';
+import { Header } from '@/components/layout/header';
+import { Avatar } from '@/components/ui/avatar';
+import { Spinner } from '@/components/ui/loading';
+import { toast } from '@/components/ui/toaster';
+import { CURRENCIES } from '@/types';
+import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
-  const { data: session, update } = useSession()
-  const queryClient = useQueryClient()
-  const [activeSection, setActiveSection] = useState('profile')
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { data: session, update } = useSession();
+  const queryClient = useQueryClient();
+  const [activeSection, setActiveSection] = useState('profile');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploadingAvatar(true)
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
     try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
       await fetch('/api/users/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ avatar: data.url }),
-      })
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
-      await update({ image: data.url })
-      toast({ type: 'success', title: 'Photo updated!' })
-    } catch (err: any) {
-      toast({ type: 'error', title: 'Upload failed', description: err.message })
+      });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await update({ image: data.url });
+      toast({ type: 'success', title: 'Photo updated!' });
+    } catch (err) {
+      toast({ type: 'error', title: 'Upload failed', description: (err as Error).message });
     } finally {
-      setUploadingAvatar(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }
+  };
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: () => fetch('/api/users/me').then((r) => r.json()),
-  })
+  });
 
   const profileForm = useForm({
     values: {
@@ -59,80 +59,86 @@ export default function SettingsPage() {
       currency: profile?.currency || 'USD',
       timezone: profile?.timezone || 'UTC',
     },
-  })
+  });
 
   const passwordForm = useForm({
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
-  })
+  });
 
   const updateProfile = useMutation({
-    mutationFn: (data: any) =>
+    mutationFn: (data: {
+      name?: string;
+      bio?: string | null;
+      phone?: string | null;
+      currency?: string;
+      timezone?: string;
+    }) =>
       fetch('/api/users/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then(async (r) => {
-        const json = await r.json()
-        if (!r.ok) throw new Error(json.error)
-        return json
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error);
+        return json;
       }),
     onSuccess: async (data) => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
-      await update({ name: data.name, currency: data.currency })
-      toast({ type: 'success', title: 'Profile updated!' })
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await update({ name: data.name, currency: data.currency });
+      toast({ type: 'success', title: 'Profile updated!' });
     },
     onError: (err: Error) => toast({ type: 'error', title: 'Failed', description: err.message }),
-  })
+  });
 
   const upgradeToPro = useMutation({
     mutationFn: () =>
       fetch('/api/users/upgrade', { method: 'POST' }).then(async (r) => {
-        const json = await r.json()
-        if (!r.ok) throw new Error(json.error)
-        return json
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error);
+        return json;
       }),
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
-      await update({ isPro: true })
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await update({ isPro: true });
       toast({
         type: 'success',
         title: 'Welcome to Pro!',
         description: 'All Pro features are now unlocked.',
-      })
+      });
     },
     onError: (err: Error) => toast({ type: 'error', title: 'Failed', description: err.message }),
-  })
+  });
 
   const updatePassword = useMutation({
-    mutationFn: (data: any) =>
+    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
       fetch('/api/users/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then(async (r) => {
-        const json = await r.json()
-        if (!r.ok) throw new Error(json.error)
-        return json
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error);
+        return json;
       }),
     onSuccess: () => {
-      toast({ type: 'success', title: 'Password updated!' })
-      passwordForm.reset()
+      toast({ type: 'success', title: 'Password updated!' });
+      passwordForm.reset();
     },
     onError: (err: Error) => toast({ type: 'error', title: 'Failed', description: err.message }),
-  })
+  });
 
   const sections = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'preferences', label: 'Preferences', icon: Globe },
-  ]
+  ];
 
   if (isLoading)
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Spinner className="h-8 w-8" />
       </div>
-    )
+    );
 
   return (
     <div>
@@ -143,16 +149,16 @@ export default function SettingsPage() {
         <div className="flex flex-col gap-6 lg:flex-row">
           {/* Sidebar */}
           <div className="shrink-0 lg:w-48">
-            <nav className="scrollbar-none flex gap-1 overflow-x-auto lg:flex-col">
+            <nav className="flex scrollbar-none gap-1 overflow-x-auto lg:flex-col">
               {sections.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setActiveSection(s.id)}
                   className={cn(
-                    'flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                    'flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-all',
                     activeSection === s.id
                       ? 'bg-brand-50 text-brand-700'
-                      : 'text-gray-600 hover:bg-gray-50'
+                      : 'text-gray-600 hover:bg-gray-50',
                   )}
                 >
                   <s.icon className="h-4 w-4 shrink-0" />
@@ -181,7 +187,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploadingAvatar}
-                      className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 shadow-lg transition-colors hover:bg-brand-600 disabled:opacity-60"
+                      className="absolute right-0 bottom-0 flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 shadow-lg transition-colors hover:bg-brand-600 disabled:opacity-60"
                       title="Change photo"
                     >
                       {uploadingAvatar ? (
@@ -275,13 +281,13 @@ export default function SettingsPage() {
                 <form
                   onSubmit={passwordForm.handleSubmit((data) => {
                     if (data.newPassword !== data.confirmPassword) {
-                      toast({ type: 'error', title: "Passwords don't match" })
-                      return
+                      toast({ type: 'error', title: "Passwords don't match" });
+                      return;
                     }
                     updatePassword.mutate({
                       currentPassword: data.currentPassword,
                       newPassword: data.newPassword,
-                    })
+                    });
                   })}
                   className="space-y-4"
                 >
@@ -420,5 +426,5 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
