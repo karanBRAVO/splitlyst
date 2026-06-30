@@ -3,7 +3,7 @@ const config = {
   printWidth: 100,
   tabWidth: 2,
   useTabs: false,
-  semi: false,
+  semi: true,
   singleQuote: true,
   quoteProps: 'as-needed',
   jsxSingleQuote: false,
@@ -12,9 +12,10 @@ const config = {
   bracketSameLine: false,
   arrowParens: 'always',
   endOfLine: 'lf',
+  trailingComma: 'all',
   // Sort Tailwind classes automatically
   plugins: ['prettier-plugin-tailwindcss'],
   tailwindStylesheet: './app/globals.css',
-}
+};
 
-export default config
+export default config;

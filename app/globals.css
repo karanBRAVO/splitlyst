@@ -1,6 +1,70 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  /* Brand color palette */
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+  --color-brand-950: #022c22;
+
+  /* Font */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  /* Animations */
+  --animate-fade-in: fadeIn 0.3s ease-in-out;
+  --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-slide-down: slideDown 0.2s ease-out;
+  --animate-scale-in: scaleIn 0.2s ease-out;
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(16px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideDown {
+    from {
+      transform: translateY(-8px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
 
 @layer base {
   :root {
@@ -25,7 +89,9 @@
   body {
     background-color: rgb(249 250 251);
     color: rgb(17 24 39);
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -55,47 +121,47 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-primary {
-    @apply btn bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700 shadow-sm;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 font-medium text-white shadow-sm transition-all duration-200 hover:bg-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 active:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:bg-gray-100 shadow-sm;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 active:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply btn text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-danger {
-    @apply btn bg-red-500 text-white hover:bg-red-600 active:bg-red-700 shadow-sm;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 font-medium text-white shadow-sm transition-all duration-200 hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 active:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-sm {
-    @apply text-sm px-3 py-1.5;
+    @apply px-3 py-1.5 text-sm;
   }
 
   .btn-md {
-    @apply text-sm px-4 py-2;
+    @apply px-4 py-2 text-sm;
   }
 
   .btn-lg {
-    @apply text-base px-6 py-3;
+    @apply px-6 py-3 text-base;
   }
 
   .input {
-    @apply w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1.5;
+    @apply mb-1.5 block text-sm font-medium text-gray-700;
   }
 
   .card {
-    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+    @apply rounded-xl border border-gray-200 bg-white shadow-sm;
   }
 
   .badge {
@@ -103,23 +169,23 @@
   }
 
   .badge-green {
-    @apply badge bg-brand-100 text-brand-700;
+    @apply inline-flex items-center rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700;
   }
 
   .badge-red {
-    @apply badge bg-red-100 text-red-700;
+    @apply inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700;
   }
 
   .badge-gray {
-    @apply badge bg-gray-100 text-gray-700;
+    @apply inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700;
   }
 
   .badge-blue {
-    @apply badge bg-blue-100 text-blue-700;
+    @apply inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700;
   }
 
   .badge-yellow {
-    @apply badge bg-yellow-100 text-yellow-700;
+    @apply inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700;
   }
 
   .page-header {
@@ -131,23 +197,23 @@
   }
 
   .page-subtitle {
-    @apply text-sm text-gray-500 mt-1;
+    @apply mt-1 text-sm text-gray-500;
   }
 
   .divider {
-    @apply border-t border-gray-200 my-4;
+    @apply my-4 border-t border-gray-200;
   }
 
   .amount-positive {
-    @apply text-brand-600 font-semibold;
+    @apply font-semibold text-brand-600;
   }
 
   .amount-negative {
-    @apply text-red-500 font-semibold;
+    @apply font-semibold text-red-500;
   }
 
   .amount-neutral {
-    @apply text-gray-500 font-semibold;
+    @apply font-semibold text-gray-500;
   }
 }
 

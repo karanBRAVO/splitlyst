@@ -1,13 +1,13 @@
-'use client'
+'use client';
 
-import { useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import Link from 'next/link'
-import { Activity, Bell, CheckCheck } from 'lucide-react'
-import { Header } from '@/components/layout/header'
-import { EmptyState } from '@/components/ui/empty-state'
-import { SkeletonList } from '@/components/ui/loading'
-import { formatDateRelative } from '@/lib/utils'
+import { useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
+import { Activity, Bell, CheckCheck } from 'lucide-react';
+import { Header } from '@/components/layout/header';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonList } from '@/components/ui/loading';
+import { formatDateRelative } from '@/lib/utils';
 
 const activityIcons: Record<string, string> = {
   expense_added: '💸',
@@ -19,39 +19,39 @@ const activityIcons: Record<string, string> = {
   member_removed: '👋',
   friend_added: '🤝',
   settled_up: '✅',
-}
+};
 
 export default function ActivityPage() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   const { data: activities = [], isLoading } = useQuery({
     queryKey: ['activity'],
     queryFn: () => fetch('/api/activity?limit=50').then((r) => r.json()),
-  })
+  });
 
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => fetch('/api/notifications').then((r) => r.json()),
-  })
+  });
 
   const markAllRead = useMutation({
     mutationFn: () =>
       fetch('/api/notifications?markAllRead=true', { method: 'PATCH' }).then((r) => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
     },
-  })
+  });
 
-  const unreadCount = notifications.filter((n: { read: boolean }) => !n.read).length
+  const unreadCount = notifications.filter((n: { read: boolean }) => !n.read).length;
 
   // Auto-mark all as read when the activity page is opened and notifications are loaded
   useEffect(() => {
     if (unreadCount > 0) {
-      markAllRead.mutate()
+      markAllRead.mutate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unreadCount > 0])
+  }, [unreadCount > 0]);
 
   return (
     <div>
@@ -109,12 +109,12 @@ export default function ActivityPage() {
             <div className="space-y-1">
               {activities.map(
                 (activity: {
-                  id: string
-                  type: string
-                  description: string
-                  createdAt: string
-                  group?: { id: string; name: string }
-                  expense?: { id: string }
+                  id: string;
+                  type: string;
+                  description: string;
+                  createdAt: string;
+                  group?: { id: string; name: string };
+                  expense?: { id: string };
                 }) => (
                   <div
                     key={activity.id}
@@ -148,12 +148,12 @@ export default function ActivityPage() {
                       </Link>
                     )}
                   </div>
-                )
+                ),
               )}
             </div>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }

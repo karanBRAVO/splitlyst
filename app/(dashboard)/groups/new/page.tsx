@@ -1,38 +1,41 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Plus } from 'lucide-react'
-import { Header } from '@/components/layout/header'
-import { toast } from '@/components/ui/toaster'
-import { Spinner } from '@/components/ui/loading'
-import { CURRENCIES, GROUP_CATEGORIES } from '@/types'
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { X, Plus } from 'lucide-react';
+import { Header } from '@/components/layout/header';
+import { toast } from '@/components/ui/toaster';
+import { Spinner } from '@/components/ui/loading';
+import { CURRENCIES, GROUP_CATEGORIES } from '@/types';
 
 const schema = z.object({
   name: z.string().min(1, 'Group name is required').max(100),
   description: z.string().max(500).optional(),
-  currency: z.string().default('USD'),
-  category: z.string().default('other'),
-})
+  currency: z.string(),
+  category: z.string(),
+});
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<typeof schema>;
 
 export default function NewGroupPage() {
-  const router = useRouter()
-  const queryClient = useQueryClient()
-  const [memberEmail, setMemberEmail] = useState('')
-  const [memberEmails, setMemberEmails] = useState<string[]>([])
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberEmails, setMemberEmails] = useState<string[]>([]);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     watch,
-  } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { currency: 'USD', category: 'other' } })
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { currency: 'USD', category: 'other' },
+  });
 
   const mutation = useMutation({
     mutationFn: (data: FormData & { memberEmails: string[] }) =>
@@ -41,40 +44,42 @@ export default function NewGroupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then(async (r) => {
-        const json = await r.json()
-        if (!r.ok) throw new Error(json.error)
-        return json
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error);
+        return json;
       }),
     onSuccess: (group) => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] })
-      toast({ type: 'success', title: 'Group created!', description: `"${group.name}" is ready.` })
-      router.push(`/groups/${group.id}`)
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      toast({ type: 'success', title: 'Group created!', description: `"${group.name}" is ready.` });
+      router.push(`/groups/${group.id}`);
     },
     onError: (err: Error) => {
-      toast({ type: 'error', title: 'Failed to create group', description: err.message })
+      toast({ type: 'error', title: 'Failed to create group', description: err.message });
     },
-  })
+  });
 
   const addEmail = () => {
-    const email = memberEmail.trim().toLowerCase()
-    if (!email || memberEmails.includes(email)) return
+    const email = memberEmail.trim().toLowerCase();
+    if (!email || memberEmails.includes(email)) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast({ type: 'error', title: 'Invalid email' })
-      return
+      toast({ type: 'error', title: 'Invalid email' });
+      return;
     }
-    setMemberEmails([...memberEmails, email])
-    setMemberEmail('')
-  }
+    setMemberEmails([...memberEmails, email]);
+    setMemberEmail('');
+  };
 
-  const selectedCategory = watch('category')
+  const selectedCategory = watch('category');
 
   return (
     <div>
       <Header title="New Group" back="/groups" />
-      <div className="max-w-lg mx-auto px-4 py-6 lg:px-6">
-        <div className="hidden lg:block mb-6">
+      <div className="mx-auto max-w-lg px-4 py-6 lg:px-6">
+        <div className="mb-6 hidden lg:block">
           <h1 className="page-title">Create a group</h1>
-          <p className="page-subtitle">Organize shared expenses with friends, family, or roommates</p>
+          <p className="page-subtitle">
+            Organize shared expenses with friends, family, or roommates
+          </p>
         </div>
 
         <form
@@ -87,14 +92,21 @@ export default function NewGroupPage() {
             <div className="grid grid-cols-4 gap-2">
               {GROUP_CATEGORIES.map((cat) => (
                 <label key={cat.value} className="cursor-pointer">
-                  <input {...register('category')} type="radio" value={cat.value} className="sr-only" />
-                  <div className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${
-                    selectedCategory === cat.value
-                      ? 'border-brand-500 bg-brand-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}>
+                  <input
+                    {...register('category')}
+                    type="radio"
+                    value={cat.value}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`flex flex-col items-center gap-1 rounded-xl border-2 p-2 transition-all ${
+                      selectedCategory === cat.value
+                        ? 'border-brand-500 bg-brand-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
                     <span className="text-xl">{cat.emoji}</span>
-                    <span className="text-[10px] font-medium text-gray-600 text-center leading-tight">
+                    <span className="text-center text-[10px] leading-tight font-medium text-gray-600">
                       {cat.label}
                     </span>
                   </div>
@@ -106,8 +118,12 @@ export default function NewGroupPage() {
           {/* Name */}
           <div>
             <label className="label">Group name *</label>
-            <input {...register('name')} className="input" placeholder="e.g. Roommates, Trip to Paris" />
-            {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
+            <input
+              {...register('name')}
+              className="input"
+              placeholder="e.g. Roommates, Trip to Paris"
+            />
+            {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
           </div>
 
           {/* Description */}
@@ -145,20 +161,27 @@ export default function NewGroupPage() {
                 className="input flex-1"
                 placeholder="friend@example.com"
               />
-              <button type="button" onClick={addEmail} className="btn btn-secondary btn-md shrink-0">
-                <Plus className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={addEmail}
+                className="btn btn-secondary btn-md shrink-0"
+              >
+                <Plus className="h-4 w-4" />
               </button>
             </div>
             {memberEmails.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {memberEmails.map((email) => (
-                  <div key={email} className="flex items-center gap-1.5 bg-brand-50 text-brand-700 rounded-full px-3 py-1 text-sm">
+                  <div
+                    key={email}
+                    className="flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700"
+                  >
                     <span>{email}</span>
                     <button
                       type="button"
                       onClick={() => setMemberEmails(memberEmails.filter((e) => e !== email))}
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ))}
@@ -179,11 +202,11 @@ export default function NewGroupPage() {
               disabled={mutation.isPending}
               className="btn btn-primary btn-lg flex-1"
             >
-              {mutation.isPending ? <Spinner className="w-4 h-4" /> : 'Create Group'}
+              {mutation.isPending ? <Spinner className="h-4 w-4" /> : 'Create Group'}
             </button>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }

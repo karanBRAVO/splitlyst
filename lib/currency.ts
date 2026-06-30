@@ -19,34 +19,33 @@ const FALLBACK_RATES: Record<string, number> = {
   ZAR: 18.63,
   AED: 3.67,
   THB: 35.1,
-}
+};
 
-let cachedRates: Record<string, number> | null = null
-let cacheTime = 0
-const CACHE_TTL = 1000 * 60 * 60 // 1 hour
+let cachedRates: Record<string, number> | null = null;
+let cacheTime = 0;
+const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
 export async function getExchangeRates(base = 'USD'): Promise<Record<string, number>> {
   if (cachedRates && Date.now() - cacheTime < CACHE_TTL) {
-    return cachedRates
+    return cachedRates;
   }
 
-  const apiKey = process.env.EXCHANGE_RATE_API_KEY
+  const apiKey = process.env.EXCHANGE_RATE_API_KEY;
   if (!apiKey) {
-    return FALLBACK_RATES
+    return FALLBACK_RATES;
   }
 
   try {
-    const res = await fetch(
-      `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${base}`,
-      { next: { revalidate: 3600 } }
-    )
-    if (!res.ok) throw new Error('API error')
-    const data = await res.json()
-    cachedRates = data.conversion_rates
-    cacheTime = Date.now()
-    return cachedRates!
+    const res = await fetch(`https://v6.exchangerate-api.com/v6/${apiKey}/latest/${base}`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+    cachedRates = data.conversion_rates;
+    cacheTime = Date.now();
+    return cachedRates!;
   } catch {
-    return FALLBACK_RATES
+    return FALLBACK_RATES;
   }
 }
 
@@ -54,20 +53,36 @@ export function convertAmount(
   amount: number,
   from: string,
   to: string,
-  rates: Record<string, number>
+  rates: Record<string, number>,
 ): number {
-  if (from === to) return amount
-  const fromRate = rates[from] || 1
-  const toRate = rates[to] || 1
-  return Math.round(((amount / fromRate) * toRate) * 100) / 100
+  if (from === to) return amount;
+  const fromRate = rates[from] || 1;
+  const toRate = rates[to] || 1;
+  return Math.round((amount / fromRate) * toRate * 100) / 100;
 }
 
 export function getCurrencySymbol(code: string): string {
   const symbols: Record<string, string> = {
-    USD: '$', EUR: '€', GBP: '£', JPY: '¥', CAD: 'C$',
-    AUD: 'A$', CHF: 'Fr', CNY: '¥', INR: '₹', MXN: '$',
-    BRL: 'R$', SGD: 'S$', NZD: 'NZ$', HKD: 'HK$', SEK: 'kr',
-    NOK: 'kr', DKK: 'kr', ZAR: 'R', AED: 'د.إ', THB: '฿',
-  }
-  return symbols[code] || code
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+    CAD: 'C$',
+    AUD: 'A$',
+    CHF: 'Fr',
+    CNY: '¥',
+    INR: '₹',
+    MXN: '$',
+    BRL: 'R$',
+    SGD: 'S$',
+    NZD: 'NZ$',
+    HKD: 'HK$',
+    SEK: 'kr',
+    NOK: 'kr',
+    DKK: 'kr',
+    ZAR: 'R',
+    AED: 'د.إ',
+    THB: '฿',
+  };
+  return symbols[code] || code;
 }

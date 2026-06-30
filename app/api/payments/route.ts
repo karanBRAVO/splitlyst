@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { z } from 'zod'
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
 
 const schema = z.object({
   receiverId: z.string(),
@@ -9,14 +9,14 @@ const schema = z.object({
   currency: z.string().length(3).default('USD'),
   groupId: z.string().optional().nullable(),
   notes: z.string().max(200).optional().nullable(),
-})
+});
 
 export async function GET(req: NextRequest) {
-  const session = await getAuth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { searchParams } = new URL(req.url)
-  const groupId = searchParams.get('groupId')
+  const { searchParams } = new URL(req.url);
+  const groupId = searchParams.get('groupId');
 
   const payments = await prisma.payment.findMany({
     where: {
@@ -29,21 +29,21 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
-  })
+  });
 
-  return NextResponse.json(payments)
+  return NextResponse.json(payments);
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getAuth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const body = await req.json()
-    const { receiverId, amount, currency, groupId, notes } = schema.parse(body)
+    const body = await req.json();
+    const { receiverId, amount, currency, groupId, notes } = schema.parse(body);
 
     if (receiverId === session.user.id) {
-      return NextResponse.json({ error: 'Cannot pay yourself' }, { status: 400 })
+      return NextResponse.json({ error: 'Cannot pay yourself' }, { status: 400 });
     }
 
     const payment = await prisma.payment.create({
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         payer: { select: { id: true, name: true, avatar: true } },
         receiver: { select: { id: true, name: true, avatar: true } },
       },
-    })
+    });
 
     await prisma.activity.create({
       data: {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         type: 'payment_recorded',
         description: `${session.user.name} paid ${payment.receiver.name} $${amount.toFixed(2)}`,
       },
-    })
+    });
 
     await prisma.notification.create({
       data: {
@@ -78,14 +78,14 @@ export async function POST(req: NextRequest) {
         message: `${session.user.name} paid you $${amount.toFixed(2)}`,
         data: { paymentId: payment.id },
       },
-    })
+    });
 
-    return NextResponse.json(payment, { status: 201 })
+    return NextResponse.json(payment, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors[0].message }, { status: 400 })
+      return NextResponse.json({ error: err.issues[0].message }, { status: 400 });
     }
-    console.error('[payments POST]', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[payments POST]', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
