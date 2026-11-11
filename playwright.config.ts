@@ -9,6 +9,7 @@ try {
 Reflect.deleteProperty(process.env, 'NODE_ENV');
 
 const PORT = 3100;
+const FAKE_OTARI_PORT = 3199;
 const BASE_URL = `http://localhost:${PORT}`;
 
 // The app runs as a production build so the tests exercise real production behaviour.
@@ -29,18 +30,32 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: `npm run build && npx next start -p ${PORT}`,
-    url: `${BASE_URL}/login`,
-    timeout: 600_000,
-    reuseExistingServer: !process.env.CI,
-    env: {
-      NODE_ENV: 'production',
-      NEXTAUTH_URL: BASE_URL,
-      NEXT_PUBLIC_APP_URL: BASE_URL,
-      RESEND_API_KEY: '',
-      EMAIL_FROM: '',
-      CRON_SECRET: 'e2e-cron-secret',
+  webServer: [
+    {
+      // Fake Otari gateway: AI tests are deterministic and never spend real money
+      command: 'node scripts/fake-otari.mjs',
+      url: `http://localhost:${FAKE_OTARI_PORT}/health`,
+      timeout: 30_000,
+      reuseExistingServer: !process.env.CI,
     },
-  },
+    {
+      command: `npm run build && npx next start -p ${PORT}`,
+      url: `${BASE_URL}/login`,
+      timeout: 600_000,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        NODE_ENV: 'production',
+        NEXTAUTH_URL: BASE_URL,
+        NEXT_PUBLIC_APP_URL: BASE_URL,
+        RESEND_API_KEY: '',
+        EMAIL_FROM: '',
+        CRON_SECRET: 'e2e-cron-secret',
+        // Point the app at the fake gateway so tests never touch (or bill) the real Otari account
+        OTARI_BASE_URL: `http://localhost:${FAKE_OTARI_PORT}/api/v1`,
+        OTARI_API_KEY: 'otk_e2e_fake',
+        OTARI_DAILY_BUDGET_USD: '0.10',
+        OTARI_GUARDRAIL_PROFILE: 'prompt-injection',
+      },
+    },
+  ],
 });

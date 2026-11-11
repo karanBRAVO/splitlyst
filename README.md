@@ -74,6 +74,7 @@ Everything is free — there are no paid tiers, expense caps, or ads.
 | **Multi-currency**   | 20+ currencies with live conversion to your preferred currency                                                                                                                 |
 | **Balances**         | Real-time balances across groups and friends                                                                                                                                   |
 | **Smart settle-up**  | Minimum-transaction debt simplification                                                                                                                                        |
+| **AI Agent**         | Describe an expense in plain English → the agent _proposes_ it (nothing saved until you confirm). Runs on open-weight models through Otari, with a per-user daily AI allowance |
 | **Activity feed**    | Grouped by day with filters; shows who did what, amounts, and your effect ("you lent" / "you owe")                                                                             |
 | **Payments**         | Calculated, not typed: the amount is the outstanding balance (read-only) and the server rejects anything above it; either person can record it; full **Payments** history page |
 | **Pay links**        | Venmo / PayPal / UPI deep links when you owe a friend who saved a handle                                                                                                       |
@@ -106,6 +107,110 @@ byte-for-byte clone. Known gaps:
 - **Separate balances per currency** — amounts are converted into one currency instead of tracked per currency.
 - **Receipt OCR / auto-itemising**, **bank transaction import** and **in-app payments** (Venmo/PayPal/UPI are deep links only).
 - **Email change**, **comment edit/delete**, **notification preferences** (which emails/pushes you want), and **real-time sync** between devices.
+
+---
+
+## AI Agent (Otari)
+
+The `/agent` page turns a sentence like _"Dinner 3200 with Priya and Amit, I paid"_ into a proposed expense.
+The agent **never saves anything on its own**: you review the proposal (payer, people, per-person shares) and
+press **Confirm**, which uses the normal, fully validated expense endpoint.
+
+**The two-model flow**
+
+1. **Reader** (fast, ~2 s) → proposal appears immediately, shares computed by the server.
+2. **Planner** (stronger, ~14 s, ~$0.01) → re-computes the split by running Python through Otari's code tool.
+   The result is compared in whole cents with the server's own maths: ✅ _verified_, ⚠️ _mismatch_
+   (the server's numbers are still what gets saved) or _unverified/unavailable_. It never blocks confirming, and
+   "verified" is only shown if Otari reports that code actually ran.
+3. The Python is fixed (integer cents) rather than model-written: a live run showed the model's own code was
+   wrong for 3200 ÷ 3. A differential test checks the Python against the TypeScript on 150 random splits.
+
+**How it is wired**
+
+```text
+Browser ──► POST /api/agent/propose ──► lib/otari.ts ──► Otari gateway ──► open-weight model
+              │  name → user-id matching          (one OpenAI-compatible endpoint, per-user billing)
+              │  server-side split arithmetic
+              ▼
+        Proposal card + "What happened (Otari)" inspector ──► Confirm ──► POST /api/expenses
+```
+
+- The model never supplies user ids: it returns names, and the server matches them to people the user is
+  allowed to use (the group's members, or you + accepted friends). Unknown names are flagged, never guessed.
+- The split amounts that get saved are computed by the server, not the model.
+- Every call is sent with the Splitlyst user id in the `user` field, so Otari bills each person against their
+  **own** daily budget. When it runs out they see a friendly message and the allowance meter shows the reset time.
+- The inspector under each answer shows the model that actually answered, whether a backup was used, tokens/cost,
+  tools run and guardrail verdicts.
+
+**Trip budget planner (web search)**
+
+The _Plan a trip_ tab takes a destination, days, people and style, and asks the `researcher` model to search the live
+web for typical prices. It exists because no API in the app has this data (exchange rates are _not_ looked up this way —
+the app already has an exchange-rate API for that). Safeguards:
+
+- Category amounts come from the model, but **every total, per-person and per-day figure is recomputed by the server**
+  (a model-reported total is ignored).
+- **Sources are the pages Otari's search tool actually returned**, de-duplicated and restricted to `http(s)` links —
+  never links the model wrote. If no search ran, the card says it is "a rough guess, not live data".
+- The destination is user-typed text, so it goes through the same prompt-injection guardrail as expense text.
+- Nothing is saved; "Create a group for this trip" just opens the new-group form pre-filled
+  (`/groups/new?name=…&category=trip&currency=…`).
+- It costs about **$0.02** per estimate (two searches plus the model) and takes ~20–40 s, so it uses a noticeable
+  share of the default $0.10/day allowance.
+
+**Models** (all open-weight, verified live on the account; override with `OTARI_MODEL_<ROLE>`)
+
+| Role    | Model                                                                 | Why                                                                                                                        |
+| ------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Reader  | `alibaba/qwen3-30b-a3b-instruct-2507`                                 | ~2 s and cheapest of the non-reasoning candidates; `gpt-oss-120b` took 5–25 s and could run out of tokens while "thinking" |
+| Planner | routing policy `splitlyst-agent` (Qwen3-235B → backup `z-ai/glm-4.7`) | Fallback happens inside Otari                                                                                              |
+| Vision  | `alibaba/qwen3-vl-30b-a3b-instruct`                                   | Receipt reading (planned)                                                                                                  |
+
+**Guardrail setup (prompt injection)**
+
+Text people paste is untrusted, so the reader request names a prompt-injection guardrail in _block_ mode.
+
+1. In Otari: _Organization → Guardrails → Configure guardrail_ → risk type _Prompt injection_ → **Lakera Guard**
+   (needs a Lakera API key) → save. Use **Test** to check it flags "ignore your instructions…".
+2. _Mandate a guardrail_ → pick it, choose a **profile name** (e.g. `lakera-guard`), _what it checks: user input_.
+   A _Monitor_ mandate is fine: the app's request tightens it to _block_ for the reader call.
+3. Put that exact profile name in `.env` as `OTARI_GUARDRAIL_PROFILE=lakera-guard` and restart.
+
+It is opt-in: with the variable unset nothing is sent. **The name must match the mandate's profile name** — an
+unknown name makes Otari answer `502 guardrail profile '…' requested but no guardrails service is configured`
+(logged as `[agent] Otari error:` and shown to users as "unavailable"). A blocked message returns a plain
+explanation, saves nothing, and the inspector shows the flagged profile (Otari lists it in the error body, not the
+`Otari-Guardrails` header). The code-check (planner) call is not screened — it only sees app-built numbers.
+
+**Setup (hosted otari.ai)**
+
+1. Create a budget (e.g. **$0.10 / day**) in _Spend & budgets_.
+2. _API keys → Create key → Advanced → Service key_; pick that budget as the end-user budget.
+3. Put the key in `.env` as `OTARI_API_KEY` and set `OTARI_DAILY_BUDGET_USD` to match.
+4. (Optional) _Routing → Policies → Fallback_ named `splitlyst-agent`.
+
+**Testing it**
+
+```bash
+npm run otari:smoke   # live: real model, 4 sentences, a few fractions of a cent
+npm test              # unit/route tests (gateway mocked)
+npm run test:e2e      # browser tests run against scripts/fake-otari.mjs — no real calls, no cost
+```
+
+**Contest rubric status (MozFest Developers Wilding)** — updated as features land:
+
+| Otari capability                               | Status in the app                                                                                                                                                                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open-weight models (2+ for different purposes) | ✅ Reader (Qwen3-30B) and planner (Qwen3-235B via policy, GLM-4.7 backup) both run in the app; vision is planned                                                                                                     |
+| Per-user budgets                               | ✅ `user` field per request, allowance meter, friendly refusal                                                                                                                                                       |
+| Budgets and spending limits                    | ✅ per-user daily limit handled end to end; workspace ceiling is set in the Otari dashboard                                                                                                                          |
+| Model routing and fallbacks                    | ✅ The planner is always called through the `splitlyst-agent` policy; the inspector shows the answering model and a "backup model used" badge (`Otari-Fallback` header)                                              |
+| Code execution                                 | ✅ The planner runs a fixed Python snippet in Otari's sandbox to re-compute every split; the card shows a verified / mismatch badge                                                                                  |
+| Web search                                     | ✅ The _Plan a trip_ tab has a researcher model search the live web (Otari's built-in search, capped at 2 searches) for typical costs; the page lists the sources the tool actually returned                         |
+| MCP integrations                               | 🚧 planned                                                                                                                                                                                                           |
+| Guardrails                                     | ✅ Lakera Guard (prompt injection) is mandated in Otari and the reader request tightens it to _block_; verified live: normal text passes, an injection is refused with a plain message and the flagged profile shown |
 
 ---
 
@@ -209,23 +314,25 @@ Copy `.env.example` to `.env` and fill in the values:
 cp .env.example .env
 ```
 
-| Variable                                             | Required | Description                                                                               |
-| ---------------------------------------------------- | :------: | ----------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                       |    ✅    | PostgreSQL connection string                                                              |
-| `NEXTAUTH_SECRET`                                    |    ✅    | Random string ≥ 32 characters for JWT signing                                             |
-| `NEXTAUTH_URL`                                       |    ✅    | Full base URL of the app (e.g. `http://localhost:3000`)                                   |
-| `EXCHANGE_RATE_API_KEY`                              |    ❌    | Free key from [exchangerate-api.com](https://www.exchangerate-api.com/) for live FX rates |
-| `NEXT_PUBLIC_APP_URL`                                |    ❌    | Same as `NEXTAUTH_URL` — used in OpenGraph metadata                                       |
-| `CLOUDINARY_CLOUD_NAME`                              |    ❌    | Cloudinary cloud name for avatar uploads                                                  |
-| `CLOUDINARY_API_KEY`                                 |    ❌    | Cloudinary API key                                                                        |
-| `CLOUDINARY_API_SECRET`                              |    ❌    | Cloudinary API secret                                                                     |
-| `DIRECT_URL`                                         |    ❌    | Non-pooled DB URL — use it for `prisma db push` when `DATABASE_URL` is a pgbouncer pooler |
-| `RESEND_API_KEY`                                     |    ❌    | [Resend](https://resend.com) key — enables password-reset, expense and reminder emails    |
-| `EMAIL_FROM`                                         |    ❌    | Sender, e.g. `Splitlyst <noreply@yourdomain.com>` (must be a verified Resend sender)      |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` |    ❌    | Web push keys — generate with `npx web-push generate-vapid-keys`                          |
-| `VAPID_SUBJECT`                                      |    ❌    | `mailto:` contact for push services, e.g. `mailto:you@yourdomain.com`                     |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`          |    ❌    | Enables Google sign-in. Redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`           |
-| `CRON_SECRET`                                        |   ✅\*   | Secret for `/api/cron/recurring`. \*Required for recurring expenses to run                |
+| Variable                                             | Required | Description                                                                                     |
+| ---------------------------------------------------- | :------: | ----------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                       |    ✅    | PostgreSQL connection string                                                                    |
+| `NEXTAUTH_SECRET`                                    |    ✅    | Random string ≥ 32 characters for JWT signing                                                   |
+| `NEXTAUTH_URL`                                       |    ✅    | Full base URL of the app (e.g. `http://localhost:3000`)                                         |
+| `EXCHANGE_RATE_API_KEY`                              |    ❌    | Free key from [exchangerate-api.com](https://www.exchangerate-api.com/) for live FX rates       |
+| `NEXT_PUBLIC_APP_URL`                                |    ❌    | Same as `NEXTAUTH_URL` — used in OpenGraph metadata                                             |
+| `CLOUDINARY_CLOUD_NAME`                              |    ❌    | Cloudinary cloud name for avatar uploads                                                        |
+| `CLOUDINARY_API_KEY`                                 |    ❌    | Cloudinary API key                                                                              |
+| `CLOUDINARY_API_SECRET`                              |    ❌    | Cloudinary API secret                                                                           |
+| `DIRECT_URL`                                         |    ❌    | Non-pooled DB URL — use it for `prisma db push` when `DATABASE_URL` is a pgbouncer pooler       |
+| `RESEND_API_KEY`                                     |    ❌    | [Resend](https://resend.com) key — enables password-reset, expense and reminder emails          |
+| `EMAIL_FROM`                                         |    ❌    | Sender, e.g. `Splitlyst <noreply@yourdomain.com>` (must be a verified Resend sender)            |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` |    ❌    | Web push keys — generate with `npx web-push generate-vapid-keys`                                |
+| `VAPID_SUBJECT`                                      |    ❌    | `mailto:` contact for push services, e.g. `mailto:you@yourdomain.com`                           |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`          |    ❌    | Enables Google sign-in. Redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`                 |
+| `OTARI_API_KEY`                                      |    ❌    | [Otari](https://otari.ai) **service key** (`otk_…`) — enables the AI Agent (hidden when unset)  |
+| `OTARI_DAILY_BUDGET_USD`                             |    ❌    | Per-user daily AI budget shown in the allowance meter (match your Otari budget; default `0.10`) |
+| `CRON_SECRET`                                        |   ✅\*   | Secret for `/api/cron/recurring`. \*Required for recurring expenses to run                      |
 
 ### Generate a strong secret
 
