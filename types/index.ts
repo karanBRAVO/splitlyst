@@ -5,7 +5,9 @@ export interface User {
   avatar?: string | null;
   currency: string;
   timezone: string;
-  isPro: boolean;
+  emailVerified?: Date | null;
+  totpEnabled?: boolean;
+  locale?: string;
   phone?: string | null;
   bio?: string | null;
   createdAt: Date;
@@ -159,7 +161,7 @@ export interface RecurringTemplate {
   createdAt: Date;
 }
 
-export type SplitType = 'equal' | 'percentage' | 'shares' | 'custom';
+export type SplitType = 'equal' | 'percentage' | 'shares' | 'custom' | 'itemized';
 
 export type ActivityType =
   | 'expense_added'

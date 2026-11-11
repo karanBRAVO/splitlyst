@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { useEffect, useState } from 'react';
+import { signIn, getProviders } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
@@ -23,6 +23,13 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
   const [showPassword, setShowPassword] = useState(false);
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState('');
+  const [hasGoogle, setHasGoogle] = useState(false);
+
+  useEffect(() => {
+    getProviders().then((p) => setHasGoogle(!!p?.google));
+  }, []);
 
   const {
     register,
@@ -36,9 +43,14 @@ export default function LoginForm() {
     const result = await signIn('credentials', {
       email: data.email,
       password: data.password,
+      totp: code,
       redirect: false,
     });
 
+    if (result?.error === 'TOTP_REQUIRED') {
+      setNeedsCode(true);
+      return;
+    }
     if (result?.error) {
       toast({ type: 'error', title: 'Sign in failed', description: result.error });
       return;
@@ -100,6 +112,25 @@ export default function LoginForm() {
           )}
         </div>
 
+        {needsCode && (
+          <div>
+            <label className="label">Authentication code</label>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              name="totp"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              className="input"
+              placeholder="123456 or a recovery code"
+              autoFocus
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Enter the 6-digit code from your authenticator app, or a recovery code.
+            </p>
+          </div>
+        )}
+
         <button
           type="submit"
           disabled={isSubmitting}
@@ -108,6 +139,22 @@ export default function LoginForm() {
           {isSubmitting ? <Spinner className="h-4 w-4" /> : 'Sign in'}
         </button>
       </form>
+
+      {hasGoogle && (
+        <>
+          <div className="my-4 flex items-center gap-3 text-xs text-gray-400">
+            <div className="h-px flex-1 bg-gray-200" /> or{' '}
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+          <button
+            type="button"
+            onClick={() => signIn('google', { callbackUrl })}
+            className="btn btn-secondary btn-lg w-full"
+          >
+            Continue with Google
+          </button>
+        </>
+      )}
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Don&apos;t have an account?{' '}

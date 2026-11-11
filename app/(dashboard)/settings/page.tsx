@@ -5,12 +5,15 @@ import { useSession } from 'next-auth/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { signOut } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
-import { Camera, Zap, LogOut, Shield, Globe, User } from 'lucide-react';
+import { Camera, LogOut, Shield, Globe, User } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Avatar } from '@/components/ui/avatar';
 import { Spinner } from '@/components/ui/loading';
 import { toast } from '@/components/ui/toaster';
 import { CURRENCIES } from '@/types';
+import { LOCALES } from '@/lib/i18n';
+import { TwoFactorCard } from '@/components/settings/two-factor';
+import { PushToggle } from '@/components/settings/push-toggle';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
@@ -58,6 +61,10 @@ export default function SettingsPage() {
       phone: profile?.phone || '',
       currency: profile?.currency || 'USD',
       timezone: profile?.timezone || 'UTC',
+      locale: profile?.locale || 'en',
+      venmo: profile?.venmo || '',
+      paypal: profile?.paypal || '',
+      upi: profile?.upi || '',
     },
   });
 
@@ -72,6 +79,10 @@ export default function SettingsPage() {
       phone?: string | null;
       currency?: string;
       timezone?: string;
+      locale?: string;
+      venmo?: string | null;
+      paypal?: string | null;
+      upi?: string | null;
     }) =>
       fetch('/api/users/me', {
         method: 'PATCH',
@@ -84,29 +95,28 @@ export default function SettingsPage() {
       }),
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
-      await update({ name: data.name, currency: data.currency });
+      queryClient.invalidateQueries({ queryKey: ['balances'] });
+      await update({ name: data.name, currency: data.currency, locale: data.locale });
       toast({ type: 'success', title: 'Profile updated!' });
     },
     onError: (err: Error) => toast({ type: 'error', title: 'Failed', description: err.message }),
   });
 
-  const upgradeToPro = useMutation({
+  const [deletePassword, setDeletePassword] = useState('');
+  const deleteAccount = useMutation({
     mutationFn: () =>
-      fetch('/api/users/upgrade', { method: 'POST' }).then(async (r) => {
+      fetch('/api/users/me', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: deletePassword }),
+      }).then(async (r) => {
         const json = await r.json();
         if (!r.ok) throw new Error(json.error);
         return json;
       }),
-    onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      await update({ isPro: true });
-      toast({
-        type: 'success',
-        title: 'Welcome to Pro!',
-        description: 'All Pro features are now unlocked.',
-      });
-    },
-    onError: (err: Error) => toast({ type: 'error', title: 'Failed', description: err.message }),
+    onSuccess: () => signOut({ callbackUrl: '/' }),
+    onError: (err: Error) =>
+      toast({ type: 'error', title: 'Could not delete account', description: err.message }),
   });
 
   const updatePassword = useMutation({
@@ -207,11 +217,6 @@ export default function SettingsPage() {
                   <div>
                     <div className="font-semibold text-gray-900">{session?.user?.name}</div>
                     <div className="text-sm text-gray-500">{session?.user?.email}</div>
-                    {profile?.isPro && (
-                      <span className="badge badge-yellow mt-1 gap-1">
-                        <Zap className="h-3 w-3" /> Pro
-                      </span>
-                    )}
                   </div>
                 </div>
 
@@ -244,6 +249,29 @@ export default function SettingsPage() {
                       rows={3}
                       placeholder="Tell people a bit about yourself"
                     />
+                  </div>
+                  <div>
+                    <label className="label">Payment handles (optional)</label>
+                    <p className="mb-2 text-xs text-gray-400">
+                      Friends who owe you will see quick pay links for these.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <input
+                        {...profileForm.register('venmo')}
+                        className="input"
+                        placeholder="Venmo username"
+                      />
+                      <input
+                        {...profileForm.register('paypal')}
+                        className="input"
+                        placeholder="PayPal.me name"
+                      />
+                      <input
+                        {...profileForm.register('upi')}
+                        className="input"
+                        placeholder="UPI ID"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="label">Stats</label>
@@ -327,6 +355,8 @@ export default function SettingsPage() {
                   </button>
                 </form>
 
+                <TwoFactorCard enabled={!!profile?.totpEnabled} />
+
                 <div className="border-t border-gray-100 pt-6">
                   <h3 className="mb-3 font-medium text-gray-900">Account</h3>
                   <button
@@ -336,6 +366,35 @@ export default function SettingsPage() {
                     <LogOut className="h-4 w-4" />
                     Sign out
                   </button>
+                </div>
+
+                <div className="border-t border-gray-100 pt-6">
+                  <h3 className="mb-1 font-medium text-red-600">Delete account</h3>
+                  <p className="mb-3 text-sm text-gray-500">
+                    Removes your personal data. Your name is replaced with &quot;Deleted user&quot;
+                    on shared expenses so other people&apos;s balances stay correct.
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      className="input"
+                      placeholder="Confirm your password"
+                    />
+                    <button
+                      onClick={() => {
+                        if (
+                          window.confirm('Permanently delete your account? This cannot be undone.')
+                        )
+                          deleteAccount.mutate();
+                      }}
+                      disabled={!deletePassword || deleteAccount.isPending}
+                      className="btn btn-danger btn-md whitespace-nowrap"
+                    >
+                      {deleteAccount.isPending ? <Spinner className="h-4 w-4" /> : 'Delete account'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -358,6 +417,23 @@ export default function SettingsPage() {
                     </select>
                     <p className="mt-1 text-xs text-gray-400">
                       Used as the default for new expenses
+                    </p>
+                  </div>
+                  <div>
+                    <label className="label">Language</label>
+                    <select
+                      {...profileForm.register('locale')}
+                      className="input"
+                      data-testid="locale"
+                    >
+                      {LOCALES.map((l) => (
+                        <option key={l.code} value={l.code}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-400">
+                      Applies to navigation and key labels
                     </p>
                   </div>
                   <div>
@@ -392,34 +468,7 @@ export default function SettingsPage() {
                   </button>
                 </form>
 
-                {!profile?.isPro ? (
-                  <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-brand-600" />
-                      <span className="font-semibold text-brand-700">Upgrade to Pro</span>
-                    </div>
-                    <p className="mb-3 text-sm text-brand-600">
-                      Unlock advanced analytics, recurring expense templates, smart settle-up, and
-                      more.
-                    </p>
-                    <button
-                      onClick={() => upgradeToPro.mutate()}
-                      disabled={upgradeToPro.isPending}
-                      className="btn btn-primary btn-sm gap-1.5"
-                    >
-                      <Zap className="h-3.5 w-3.5" />
-                      {upgradeToPro.isPending ? 'Activating…' : 'Activate Pro — Free'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
-                    <Zap className="h-5 w-5 shrink-0 text-brand-600" />
-                    <div>
-                      <div className="font-semibold text-brand-700">You&apos;re on Pro</div>
-                      <div className="text-sm text-brand-600">All Pro features are active.</div>
-                    </div>
-                  </div>
-                )}
+                <PushToggle />
               </div>
             )}
           </div>

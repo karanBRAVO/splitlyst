@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getExchangeRates, convertAmount } from '@/lib/currency';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
 
 export async function GET(req: NextRequest) {
@@ -12,6 +13,11 @@ export async function GET(req: NextRequest) {
 
   const startDate = startOfMonth(subMonths(new Date(), months - 1));
   const endDate = endOfMonth(new Date());
+
+  const userCurrency = session.user.currency || 'USD';
+  const rates = await getExchangeRates('USD');
+  // Convert any amount from the expense's own currency into the user's preferred currency
+  const toUser = (amount: number, from: string) => convertAmount(amount, from, userCurrency, rates);
 
   const expenses = await prisma.expense.findMany({
     where: {
@@ -36,10 +42,10 @@ export async function GET(req: NextRequest) {
     const key = format(new Date(expense.date), 'yyyy-MM');
     if (!monthlyData[key]) continue;
     const userSplit = expense.splits[0];
-    const amount = userSplit?.amount || 0;
+    const amount = toUser(userSplit?.amount || 0, expense.currency);
     monthlyData[key].total += amount;
     if (expense.paidById === session.user.id) {
-      monthlyData[key].paid += expense.amount;
+      monthlyData[key].paid += toUser(expense.amount, expense.currency);
     } else {
       monthlyData[key].owed += amount;
     }
@@ -49,7 +55,7 @@ export async function GET(req: NextRequest) {
   const categoryMap: Record<string, number> = {};
   for (const expense of expenses) {
     const userSplit = expense.splits[0];
-    const amount = userSplit?.amount || 0;
+    const amount = toUser(userSplit?.amount || 0, expense.currency);
     categoryMap[expense.category] = (categoryMap[expense.category] || 0) + amount;
   }
   const categoryData = Object.entries(categoryMap)
@@ -58,7 +64,7 @@ export async function GET(req: NextRequest) {
 
   // Top expenses
   const topExpenses = expenses
-    .map((e) => ({ ...e, userAmount: e.splits[0]?.amount || 0 }))
+    .map((e) => ({ ...e, userAmount: toUser(e.splits[0]?.amount || 0, e.currency) }))
     .sort((a, b) => b.userAmount - a.userAmount)
     .slice(0, 5);
 
@@ -86,6 +92,7 @@ export async function GET(req: NextRequest) {
       totalSpent: Math.round(totalSpent * 100) / 100,
       avgMonthly,
       totalExpenses: expenses.length,
+      currency: userCurrency,
       topCategory: categoryData[0]?.category || 'general',
     },
   });

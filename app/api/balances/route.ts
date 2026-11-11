@@ -3,6 +3,7 @@ import { getAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateGroupBalances, simplifyDebts } from '@/lib/calculations';
 import { roundToTwoDecimals } from '@/lib/utils';
+import { getExchangeRates, convertAmount } from '@/lib/currency';
 
 export async function GET(req: NextRequest) {
   const session = await getAuth();
@@ -11,14 +12,20 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const groupId = searchParams.get('groupId');
 
+  // Fetch rates once — used for both branches
+  const rates = await getExchangeRates('USD');
+
   if (groupId) {
-    // Group-specific balances
     const member = await prisma.groupMember.findUnique({
       where: { userId_groupId: { userId: session.user.id, groupId } },
     });
     if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const [expenses, payments, members] = await Promise.all([
+    const [group, expenses, payments, members] = await Promise.all([
+      prisma.group.findUnique({
+        where: { id: groupId },
+        select: { currency: true, simplifyDebts: true },
+      }),
       prisma.expense.findMany({
         where: { groupId },
         include: { splits: true },
@@ -30,7 +37,23 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const netMap = calculateGroupBalances(expenses, payments);
+    // Use the group's own currency as the target so all members see consistent numbers
+    const targetCurrency = group?.currency || 'USD';
+
+    // Convert every split and payment amount to the group's currency
+    const convertedExpenses = expenses.map((e) => ({
+      ...e,
+      splits: e.splits.map((s) => ({
+        ...s,
+        amount: convertAmount(s.amount, e.currency, targetCurrency, rates),
+      })),
+    }));
+    const convertedPayments = payments.map((p) => ({
+      ...p,
+      amount: convertAmount(p.amount, p.currency, targetCurrency, rates),
+    }));
+
+    const netMap = calculateGroupBalances(convertedExpenses, convertedPayments);
     const users = members.map((m) => m.user);
 
     const balances = users.map((u) => {
@@ -49,7 +72,6 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Simplified debts
     const rawDebts: Array<{ owesToUserId: string; owedByUserId: string; amount: number }> = [];
     const seen = new Set<string>();
     for (const [aId, others] of Object.entries(netMap)) {
@@ -62,16 +84,25 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const simplified = simplifyDebts(rawDebts).map((d) => ({
+    const useSimplify = group?.simplifyDebts !== false;
+    const simplified = (useSimplify ? simplifyDebts(rawDebts) : rawDebts).map((d) => ({
       from: users.find((u) => u.id === d.owedByUserId),
       to: users.find((u) => u.id === d.owesToUserId),
       amount: d.amount,
     }));
 
-    return NextResponse.json({ balances, simplified });
+    return NextResponse.json({
+      balances,
+      simplified,
+      simplifyDebts: useSimplify,
+      currency: targetCurrency,
+    });
   }
 
-  // Overall balances across all groups and friends
+  // ── Overall balances ────────────────────────────────────────────────────────
+
+  const targetCurrency = session.user.currency || 'USD';
+
   const [expenses, payments] = await Promise.all([
     prisma.expense.findMany({
       where: {
@@ -86,10 +117,22 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const netMap = calculateGroupBalances(expenses, payments);
+  // Convert every split and payment to the user's preferred currency
+  const convertedExpenses = expenses.map((e) => ({
+    ...e,
+    splits: e.splits.map((s) => ({
+      ...s,
+      amount: convertAmount(s.amount, e.currency, targetCurrency, rates),
+    })),
+  }));
+  const convertedPayments = payments.map((p) => ({
+    ...p,
+    amount: convertAmount(p.amount, p.currency, targetCurrency, rates),
+  }));
+
+  const netMap = calculateGroupBalances(convertedExpenses, convertedPayments);
   const userNet = netMap[session.user.id] || {};
 
-  // Get all user IDs in the balance map
   const otherUserIds = Object.keys(userNet).filter((id) => Math.abs(userNet[id]) > 0.01);
 
   const otherUsers = await prisma.user.findMany({
@@ -117,5 +160,6 @@ export async function GET(req: NextRequest) {
     totalOwed: roundToTwoDecimals(totalOwed),
     totalOwes: roundToTwoDecimals(totalOwes),
     net: roundToTwoDecimals(totalOwed - totalOwes),
+    currency: targetCurrency,
   });
 }

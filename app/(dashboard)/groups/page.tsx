@@ -12,10 +12,11 @@ import { getGroupCategoryEmoji } from '@/lib/utils';
 
 export default function GroupsPage() {
   const [search, setSearch] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data: groups = [], isLoading } = useQuery({
-    queryKey: ['groups'],
-    queryFn: () => fetch('/api/groups').then((r) => r.json()),
+    queryKey: ['groups', showArchived],
+    queryFn: () => fetch(`/api/groups?archived=${showArchived}`).then((r) => r.json()),
   });
 
   const filtered = groups.filter((g: { name: string }) =>
@@ -45,6 +46,21 @@ export default function GroupsPage() {
             placeholder="Search groups..."
             className="input pl-10"
           />
+        </div>
+
+        <div className="mb-4 flex gap-2">
+          <button
+            onClick={() => setShowArchived(false)}
+            className={`btn btn-sm ${!showArchived ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => setShowArchived(true)}
+            className={`btn btn-sm ${showArchived ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            Archived
+          </button>
         </div>
 
         {isLoading ? (

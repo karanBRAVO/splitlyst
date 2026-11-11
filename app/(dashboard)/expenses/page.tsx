@@ -8,10 +8,11 @@ import { Header } from '@/components/layout/header';
 import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonList } from '@/components/ui/loading';
-import { formatCurrency, formatDate, getCategoryEmoji } from '@/lib/utils';
+import { formatDate, getCategoryEmoji } from '@/lib/utils';
 import { EXPENSE_CATEGORIES } from '@/types';
 import { cn } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
+import { Money } from '@/components/ui/money';
 
 export default function ExpensesPage() {
   const { data: session } = useSession();
@@ -173,7 +174,7 @@ export default function ExpensesPage() {
                         </div>
                         <div className="shrink-0 text-right">
                           <div className="font-semibold text-gray-900">
-                            {formatCurrency(expense.amount, expense.currency)}
+                            <Money amount={expense.amount} currency={expense.currency} />
                           </div>
                           {userSplit && (
                             <div
@@ -182,9 +183,14 @@ export default function ExpensesPage() {
                                 isMyExpense ? 'text-brand-600' : 'text-red-500',
                               )}
                             >
-                              {isMyExpense
-                                ? `you paid`
-                                : `you owe ${formatCurrency(userSplit.amount, expense.currency)}`}
+                              {isMyExpense ? (
+                                'you paid'
+                              ) : (
+                                <>
+                                  you owe{' '}
+                                  <Money amount={userSplit.amount} currency={expense.currency} />
+                                </>
+                              )}
                             </div>
                           )}
                         </div>

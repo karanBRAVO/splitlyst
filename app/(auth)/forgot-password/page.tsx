@@ -29,8 +29,9 @@ export default function ForgotPasswordPage() {
       if (!data.resetUrl) {
         toast({
           type: 'success',
-          title: 'Check your email',
-          description: 'Reset instructions have been sent.',
+          title: 'Request received',
+          description:
+            "If an account exists for that email, we've sent a reset link. Check your inbox and spam folder.",
         });
       }
     } catch (err) {

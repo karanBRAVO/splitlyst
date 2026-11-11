@@ -31,6 +31,7 @@ export async function GET(req: NextRequest, props: Props) {
         orderBy: { createdAt: 'asc' },
       },
       attachments: true,
+      items: true,
       group: { select: { id: true, name: true, avatar: true } },
     },
   });
@@ -82,6 +83,11 @@ export async function PATCH(req: NextRequest, props: Props) {
         expenseId: expense.id,
         type: 'expense_updated',
         description: `${session.user.name} updated "${updated.description}"`,
+        metadata: {
+          description: updated.description,
+          amount: updated.amount,
+          currency: updated.currency,
+        },
       },
     });
 
@@ -112,6 +118,11 @@ export async function DELETE(req: NextRequest, props: Props) {
       groupId: expense.groupId,
       type: 'expense_deleted',
       description: `${session.user.name} deleted "${expense.description}"`,
+      metadata: {
+        description: expense.description,
+        amount: expense.amount,
+        currency: expense.currency,
+      },
     },
   });
 
