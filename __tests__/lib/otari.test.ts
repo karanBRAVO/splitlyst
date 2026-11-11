@@ -1,5 +1,6 @@
 import {
   OtariError,
+  agentGuardrails,
   chat,
   describeOtariError,
   getEndUserUsage,
@@ -208,5 +209,88 @@ describe('getEndUserUsage', () => {
     expect(await getEndUserUsage('me')).toBeNull();
     delete process.env.OTARI_API_KEY;
     expect(await getEndUserUsage('me')).toBeNull();
+  });
+});
+
+describe('guardrails', () => {
+  it('is opt-in: nothing is sent until a profile is configured', () => {
+    delete process.env.OTARI_GUARDRAIL_PROFILE;
+    expect(agentGuardrails()).toBeUndefined();
+    process.env.OTARI_GUARDRAIL_PROFILE = '   ';
+    expect(agentGuardrails()).toBeUndefined();
+    process.env.OTARI_GUARDRAIL_PROFILE = ' prompt-injection ';
+    expect(agentGuardrails()).toEqual([{ profile: 'prompt-injection', mode: 'block' }]);
+  });
+
+  it('a blocked request is a typed error that still carries the guardrail verdict', async () => {
+    const verdict = [{ profile: 'prompt-injection', mode: 'block', valid: false, score: 0.99 }];
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        res(
+          403,
+          { detail: 'blocked', code: 'guardrail_violation' },
+          { 'Otari-Guardrails': JSON.stringify(verdict) },
+        ),
+      );
+    const err = await chat({
+      role: 'reader',
+      messages: [],
+      guardrails: [{ profile: 'prompt-injection', mode: 'block' }],
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(OtariError);
+    expect(err.kind).toBe('guardrail_violation');
+    expect(err.inspector.guardrails).toEqual(verdict);
+    expect(err.inspector.role).toBe('reader');
+    expect(describeOtariError(err)).toMatchObject({ status: 403, kind: 'guardrail_violation' });
+    expect(describeOtariError(err).message).toMatch(/safety check/i);
+  });
+});
+
+describe('real Otari guardrail block (nested error, verdict in the body, no header)', () => {
+  // Captured from the live gateway: HTTP 403, no Otari-Guardrails header
+  const liveBody = {
+    detail: {
+      message: 'Request blocked by guardrail policy.',
+      code: 'guardrail_violation',
+      guardrails: [{ profile: 'lakera-guard', explanation: null, score: 1 }],
+    },
+  };
+
+  it('is recognised as a guardrail violation (not a generic outage)', () => {
+    const err = toOtariError(403, liveBody);
+    expect(err.kind).toBe('guardrail_violation');
+    expect(err.message).toBe('Request blocked by guardrail policy.');
+  });
+
+  it('still reads the older top-level shape, and nested budget errors', () => {
+    expect(toOtariError(403, { detail: 'x', code: 'guardrail_violation' }).kind).toBe(
+      'guardrail_violation',
+    );
+    expect(toOtariError(403, { detail: { message: 'over', code: 'budget_exceeded' } }).kind).toBe(
+      'budget_exceeded',
+    );
+  });
+
+  it('exposes the flagged profile to the inspector even though the header is missing', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(res(403, liveBody));
+    const err = await chat({
+      role: 'reader',
+      messages: [],
+      guardrails: [{ profile: 'lakera-guard', mode: 'block' }],
+    }).catch((e) => e);
+    expect(err.kind).toBe('guardrail_violation');
+    expect(err.inspector.guardrails).toEqual([
+      { mode: 'block', profile: 'lakera-guard', explanation: null, score: 1, valid: false },
+    ]);
+  });
+
+  it('a profile Otari does not know is a clear (logged) gateway error, not a block', () => {
+    const err = toOtariError(502, {
+      detail:
+        "guardrail profile 'prompt-injection' requested but no guardrails service is configured.",
+    });
+    expect(err.kind).toBe('unavailable');
+    expect(err.message).toMatch(/no guardrails service is configured/);
   });
 });

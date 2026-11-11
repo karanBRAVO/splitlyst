@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -28,6 +28,7 @@ export default function NewGroupPage() {
   const [memberEmails, setMemberEmails] = useState<string[]>([]);
 
   const {
+    setValue,
     register,
     handleSubmit,
     formState: { errors },
@@ -36,6 +37,18 @@ export default function NewGroupPage() {
     resolver: zodResolver(schema),
     defaultValues: { currency: 'USD', category: 'other' },
   });
+
+  // Allow other pages (e.g. the trip planner) to pre-fill the form: /groups/new?name=Goa&category=trip
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const name = q.get('name');
+    if (name) setValue('name', name.slice(0, 100));
+    const category = q.get('category');
+    if (category && GROUP_CATEGORIES.some((c) => c.value === category))
+      setValue('category', category);
+    const currency = q.get('currency');
+    if (currency && CURRENCIES.some((c) => c.code === currency)) setValue('currency', currency);
+  }, [setValue]);
 
   const mutation = useMutation({
     mutationFn: (data: FormData & { memberEmails: string[] }) =>

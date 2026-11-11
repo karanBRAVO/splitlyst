@@ -3,7 +3,13 @@ import { z } from 'zod';
 import { getAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
-import { chat, describeOtariError, isOtariConfigured } from '@/lib/otari';
+import {
+  OtariError,
+  agentGuardrails,
+  chat,
+  describeOtariError,
+  isOtariConfigured,
+} from '@/lib/otari';
 import { buildReaderMessages, extractJson, resolveDraft, type Person } from '@/lib/ai-draft';
 import { calculateEqualSplits, calculatePercentageSplits } from '@/lib/calculations';
 import { roundToTwoDecimals } from '@/lib/utils';
@@ -75,6 +81,8 @@ export async function POST(req: NextRequest) {
     result = await chat({
       role: 'reader',
       userId: session.user.id, // per-user budget: Otari bills this person's own daily allowance
+      // user-pasted text is untrusted: run the prompt-injection guardrail in block mode
+      guardrails: agentGuardrails(),
       json: true,
       temperature: 0,
       maxTokens: 600,
@@ -87,7 +95,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const e = describeOtariError(err);
-    return NextResponse.json({ error: e.message, kind: e.kind }, { status: e.status });
+    if (e.kind === 'unavailable' || e.kind === 'bad_request') {
+      // users get a friendly message; developers need the real reason (e.g. an unknown guardrail profile)
+      console.error('[agent] Otari error:', err instanceof Error ? err.message : err);
+    }
+    return NextResponse.json(
+      {
+        error: e.message,
+        kind: e.kind,
+        inspector: err instanceof OtariError ? err.inspector : undefined,
+      },
+      { status: e.status },
+    );
   }
 
   let draft;

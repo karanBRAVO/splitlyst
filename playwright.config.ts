@@ -54,6 +54,7 @@ export default defineConfig({
         OTARI_BASE_URL: `http://localhost:${FAKE_OTARI_PORT}/api/v1`,
         OTARI_API_KEY: 'otk_e2e_fake',
         OTARI_DAILY_BUDGET_USD: '0.10',
+        OTARI_GUARDRAIL_PROFILE: 'prompt-injection',
       },
     },
   ],

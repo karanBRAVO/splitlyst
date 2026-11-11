@@ -9,6 +9,7 @@ import { Money } from '@/components/ui/money';
 import { Spinner } from '@/components/ui/loading';
 import { toast } from '@/components/ui/toaster';
 import { OtariInspectorPanel } from '@/components/ai/otari-inspector';
+import { TripPlanner } from '@/components/ai/trip-planner';
 import { getCategoryEmoji, formatDateRelative } from '@/lib/utils';
 import type { OtariInspector } from '@/lib/otari';
 
@@ -48,6 +49,7 @@ const EXAMPLES = [
 
 export default function AgentPage() {
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<'expense' | 'trip'>('expense');
   const [text, setText] = useState('');
   const [groupId, setGroupId] = useState('');
   const [proposal, setProposal] = useState<Proposal | null>(null);
@@ -213,6 +215,30 @@ export default function AgentPage() {
           </p>
         </div>
 
+        <div className="flex gap-1.5" role="tablist" aria-label="Agent tools">
+          {(
+            [
+              ['expense', 'Add expense'],
+              ['trip', 'Plan a trip'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              data-testid={`tab-${id}`}
+              className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-all ${
+                tab === id
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {allowance && (
           <div className="card p-4" data-testid="allowance">
             <div className="mb-1.5 flex items-center justify-between text-xs text-gray-500">
@@ -235,147 +261,157 @@ export default function AgentPage() {
           </div>
         )}
 
-        <div className="card space-y-3 p-4">
-          <select
-            value={groupId}
-            onChange={(e) => setGroupId(e.target.value)}
-            className="input"
-            data-testid="agent-group"
-          >
-            <option value="">Personal / friends (no group)</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="input resize-none"
-            rows={3}
-            placeholder="e.g. Dinner 3200 with Priya and Amit, I paid"
-            data-testid="agent-text"
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                type="button"
-                onClick={() => setText(ex)}
-                className="rounded-full border border-gray-200 px-2.5 py-1 text-xs text-gray-500 hover:border-gray-300"
+        {tab === 'trip' ? (
+          <TripPlanner />
+        ) : (
+          <>
+            <div className="card space-y-3 p-4">
+              <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className="input"
+                data-testid="agent-group"
               >
-                {ex}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => propose.mutate()}
-            disabled={text.trim().length < 3 || propose.isPending}
-            className="btn btn-primary btn-md w-full gap-2"
-            data-testid="agent-propose"
-          >
-            {propose.isPending ? <Spinner className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-            {propose.isPending ? 'Thinking…' : 'Propose expense'}
-          </button>
-        </div>
-
-        {error && (
-          <div
-            role="alert"
-            data-testid="agent-error"
-            data-kind={error.kind}
-            className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-          >
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error.message}</span>
-          </div>
-        )}
-
-        {savedId && !proposal && (
-          <div
-            className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800"
-            data-testid="agent-saved"
-          >
-            Saved.{' '}
-            <Link href={`/expenses/${savedId}`} className="font-medium underline">
-              View the expense
-            </Link>
-          </div>
-        )}
-
-        {proposal && (
-          <div className="card space-y-4 p-5" data-testid="agent-proposal">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                  Proposed expense
-                </div>
-                <div className="mt-1 text-lg font-semibold text-gray-900">
-                  {getCategoryEmoji(proposal.draft.category)} {proposal.draft.description}
-                </div>
-                <div className="text-sm text-gray-500">Paid by {proposal.draft.paidByName}</div>
-              </div>
-              <Money
-                amount={proposal.draft.amount}
-                currency={proposal.draft.currency}
-                className="text-2xl font-bold text-gray-900"
+                <option value="">Personal / friends (no group)</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="input resize-none"
+                rows={3}
+                placeholder="e.g. Dinner 3200 with Priya and Amit, I paid"
+                data-testid="agent-text"
               />
-            </div>
-
-            <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-              {proposal.draft.shares.map((s) => (
-                <div key={s.userId} className="flex justify-between px-3 py-2 text-sm">
-                  <span>{s.name}</span>
-                  <Money
-                    amount={s.amount}
-                    currency={proposal.draft.currency}
-                    showConverted={false}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <VerifyBadge pending={verify.isPending} verification={verification} />
-
-            {proposal.draft.unmatched.length > 0 && (
-              <div
-                className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800"
-                data-testid="agent-unmatched"
+              <div className="flex flex-wrap gap-1.5">
+                {EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => setText(ex)}
+                    className="rounded-full border border-gray-200 px-2.5 py-1 text-xs text-gray-500 hover:border-gray-300"
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => propose.mutate()}
+                disabled={text.trim().length < 3 || propose.isPending}
+                className="btn btn-primary btn-md w-full gap-2"
+                data-testid="agent-propose"
               >
-                I couldn&apos;t find: {proposal.draft.unmatched.join(', ')}. They were left out —
-                check the split before confirming.
+                {propose.isPending ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {propose.isPending ? 'Thinking…' : 'Propose expense'}
+              </button>
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                data-testid="agent-error"
+                data-kind={error.kind}
+                className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error.message}</span>
               </div>
             )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setProposal(null);
-                }}
-                className="btn btn-secondary btn-md flex-1 gap-1.5"
-                data-testid="agent-discard"
+            {savedId && !proposal && (
+              <div
+                className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800"
+                data-testid="agent-saved"
               >
-                <X className="h-4 w-4" /> Discard
-              </button>
-              <button
-                onClick={() => confirm.mutate(proposal.draft)}
-                disabled={confirm.isPending}
-                className="btn btn-primary btn-md flex-1 gap-1.5"
-                data-testid="agent-confirm"
-              >
-                {confirm.isPending ? (
-                  <Spinner className="h-4 w-4" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
-                Confirm &amp; add
-              </button>
-            </div>
-          </div>
-        )}
+                Saved.{' '}
+                <Link href={`/expenses/${savedId}`} className="font-medium underline">
+                  View the expense
+                </Link>
+              </div>
+            )}
 
-        <OtariInspectorPanel inspectors={[lastInspector, plannerInspector]} />
+            {proposal && (
+              <div className="card space-y-4 p-5" data-testid="agent-proposal">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
+                      Proposed expense
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-gray-900">
+                      {getCategoryEmoji(proposal.draft.category)} {proposal.draft.description}
+                    </div>
+                    <div className="text-sm text-gray-500">Paid by {proposal.draft.paidByName}</div>
+                  </div>
+                  <Money
+                    amount={proposal.draft.amount}
+                    currency={proposal.draft.currency}
+                    className="text-2xl font-bold text-gray-900"
+                  />
+                </div>
+
+                <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
+                  {proposal.draft.shares.map((s) => (
+                    <div key={s.userId} className="flex justify-between px-3 py-2 text-sm">
+                      <span>{s.name}</span>
+                      <Money
+                        amount={s.amount}
+                        currency={proposal.draft.currency}
+                        showConverted={false}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <VerifyBadge pending={verify.isPending} verification={verification} />
+
+                {proposal.draft.unmatched.length > 0 && (
+                  <div
+                    className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800"
+                    data-testid="agent-unmatched"
+                  >
+                    I couldn&apos;t find: {proposal.draft.unmatched.join(', ')}. They were left out
+                    — check the split before confirming.
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setProposal(null);
+                    }}
+                    className="btn btn-secondary btn-md flex-1 gap-1.5"
+                    data-testid="agent-discard"
+                  >
+                    <X className="h-4 w-4" /> Discard
+                  </button>
+                  <button
+                    onClick={() => confirm.mutate(proposal.draft)}
+                    disabled={confirm.isPending}
+                    className="btn btn-primary btn-md flex-1 gap-1.5"
+                    data-testid="agent-confirm"
+                  >
+                    {confirm.isPending ? (
+                      <Spinner className="h-4 w-4" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Confirm &amp; add
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <OtariInspectorPanel inspectors={[lastInspector, plannerInspector]} />
+          </>
+        )}
       </div>
     </div>
   );
