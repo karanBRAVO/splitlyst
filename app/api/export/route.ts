@@ -10,10 +10,20 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const groupId = searchParams.get('groupId');
   const type = searchParams.get('type') || 'csv';
+  const from = searchParams.get('from');
+  const to = searchParams.get('to');
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(`${to}T23:59:59.999Z`) : null;
+  if ((fromDate && isNaN(fromDate.getTime())) || (toDate && isNaN(toDate.getTime()))) {
+    return NextResponse.json({ error: 'Invalid date range' }, { status: 400 });
+  }
 
   const expenses = await prisma.expense.findMany({
     where: {
       ...(groupId ? { groupId } : {}),
+      ...(fromDate || toDate
+        ? { date: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
+        : {}),
       OR: [{ paidById: session.user.id }, { splits: { some: { userId: session.user.id } } }],
     },
     include: {

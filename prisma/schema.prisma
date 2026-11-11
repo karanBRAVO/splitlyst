@@ -14,9 +14,16 @@ model User {
   avatar    String?
   currency  String   @default("USD")
   timezone  String   @default("UTC")
-  isPro     Boolean  @default(false)
+  emailVerified DateTime?
+  totpSecret    String?
+  totpEnabled   Boolean  @default(false)
+  recoveryCodes Json?
+  locale        String   @default("en")
   phone     String?
   bio       String?
+  venmo     String?
+  paypal    String?
+  upi       String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -32,6 +39,8 @@ model User {
   comments           Comment[]
   recurringTemplates RecurringTemplate[]
   passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -44,6 +53,9 @@ model Group {
   currency    String   @default("USD")
   category    String   @default("other")
   isArchived  Boolean  @default(false)
+  inviteCode  String?  @unique
+  simplifyDebts Boolean @default(true)
+  defaultSplit  Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -98,6 +110,8 @@ model Expense {
   isRecurring      Boolean   @default(false)
   recurringId      String?
   exchangeRate     Float?
+  tax              Float?
+  tip              Float?
   originalAmount   Float?
   originalCurrency String?
   createdAt        DateTime  @default(now())
@@ -109,6 +123,7 @@ model Expense {
   activities Activity[]
   comments   Comment[]
   attachments Attachment[]
+  items       ExpenseItem[]
   recurring  RecurringTemplate? @relation(fields: [recurringId], references: [id])
 
   @@map("expenses")
@@ -238,4 +253,41 @@ model RecurringTemplate {
   expenses Expense[]
 
   @@map("recurring_templates")
+}
+
+model ExpenseItem {
+  id         String @id @default(cuid())
+  expenseId  String
+  name       String
+  amount     Float
+  assignedTo Json
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@map("expense_items")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }

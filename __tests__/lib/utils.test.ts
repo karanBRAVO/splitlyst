@@ -39,6 +39,25 @@ describe('formatCurrency', () => {
   it('defaults to USD when currency is undefined', () => {
     expect(formatCurrency(5)).toBe('$5.00');
   });
+
+  it('adds thousands separators', () => {
+    expect(formatCurrency(1234567.5, 'USD')).toBe('$1,234,567.50');
+    expect(formatCurrency(83000, 'INR')).toBe('₹83,000.00');
+  });
+
+  it('uses no decimals for zero-decimal currencies', () => {
+    expect(formatCurrency(1500, 'JPY')).toBe('¥1,500');
+  });
+
+  it("uses each currency's own symbol", () => {
+    expect(formatCurrency(5, 'GBP')).toBe('£5.00');
+    expect(formatCurrency(5, 'CAD')).toBe('C$5.00');
+    expect(formatCurrency(5, 'THB')).toBe('฿5.00');
+  });
+
+  it('shows the ISO code for unknown currencies instead of a wrong symbol', () => {
+    expect(formatCurrency(5, 'XYZ')).toBe('XYZ 5.00');
+  });
 });
 
 describe('formatDate', () => {

@@ -17,7 +17,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { BarChart3, Download, Zap } from 'lucide-react';
+import { BarChart3, Download } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonList } from '@/components/ui/loading';
@@ -44,6 +44,8 @@ const PERIODS = [
 export default function AnalyticsPage() {
   const { data: session } = useSession();
   const [months, setMonths] = useState(6);
+  const [exportFrom, setExportFrom] = useState('');
+  const [exportTo, setExportTo] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', months],
@@ -59,12 +61,6 @@ export default function AnalyticsPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="page-title hidden lg:block">Analytics</h1>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="badge badge-yellow gap-1">
-                <Zap className="h-3 w-3" />
-                Pro Feature
-              </span>
-            </div>
           </div>
           <div className="flex items-center gap-2">
             {PERIODS.map((p) => (
@@ -271,11 +267,38 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Export */}
-            <div className="flex justify-center">
-              <a href="/api/export?type=csv" className="btn btn-secondary btn-md gap-2">
-                <Download className="h-4 w-4" />
-                Export All Expenses (CSV)
-              </a>
+            <div className="flex flex-wrap items-end justify-center gap-3">
+              <div>
+                <label className="label">From</label>
+                <input
+                  type="date"
+                  value={exportFrom}
+                  onChange={(e) => setExportFrom(e.target.value)}
+                  className="input"
+                  data-testid="export-from"
+                />
+              </div>
+              <div>
+                <label className="label">To</label>
+                <input
+                  type="date"
+                  value={exportTo}
+                  onChange={(e) => setExportTo(e.target.value)}
+                  className="input"
+                  data-testid="export-to"
+                />
+              </div>
+              {(['csv', 'json'] as const).map((t) => (
+                <a
+                  key={t}
+                  href={`/api/export?type=${t}${exportFrom ? `&from=${exportFrom}` : ''}${exportTo ? `&to=${exportTo}` : ''}`}
+                  className="btn btn-secondary btn-md gap-2"
+                  data-testid={`export-${t}`}
+                >
+                  <Download className="h-4 w-4" />
+                  Export {t.toUpperCase()}
+                </a>
+              ))}
             </div>
           </div>
         )}

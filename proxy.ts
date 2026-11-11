@@ -12,8 +12,11 @@ export default withAuth(
         if (
           pathname.startsWith('/login') ||
           pathname.startsWith('/register') ||
+          pathname.startsWith('/forgot-password') ||
+          pathname.startsWith('/reset-password') ||
           pathname === '/' ||
           pathname.startsWith('/api/auth') ||
+          pathname.startsWith('/api/cron') || // protected by CRON_SECRET in the route itself
           pathname.startsWith('/_next') ||
           pathname.startsWith('/icons') ||
           pathname === '/manifest.json' ||

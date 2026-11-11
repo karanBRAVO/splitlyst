@@ -2,7 +2,7 @@
 
 > Split bills, track shared expenses, and settle up with friends and groups — all in one place.
 
-A full-featured, open-source Splitwise alternative built with Next.js 15, PostgreSQL, and Prisma. Installable as a Progressive Web App (PWA) and deployable to Vercel in minutes.
+A full-featured, open-source Splitwise alternative built with Next.js 16, PostgreSQL, and Prisma. Installable as a Progressive Web App (PWA) and deployable to Vercel in minutes.
 
 ---
 
@@ -16,7 +16,7 @@ A full-featured, open-source Splitwise alternative built with Next.js 15, Postgr
 6. [Database Setup](#database-setup)
 7. [Running the App](#running-the-app)
 8. [Testing Connections](#testing-connections)
-9. [Code Quality](#code-quality)
+9. [Tests & Code Quality](#tests--code-quality)
 10. [Deploy to Vercel](#deploy-to-vercel)
 11. [PWA Installation](#pwa-installation)
 12. [Project Structure](#project-structure)
@@ -31,35 +31,81 @@ A full-featured, open-source Splitwise alternative built with Next.js 15, Postgr
 
 ## Features
 
-### Core
+Everything is free — there are no paid tiers, expense caps, or ads.
 
-| Feature             | Description                                                     |
-| ------------------- | --------------------------------------------------------------- |
-| **Auth**            | Email + password signup/login with JWT sessions (30-day expiry) |
-| **Groups**          | Create groups, invite members by email, set admin roles         |
-| **Friends**         | Add friends by email, view personal balances                    |
-| **Expenses**        | Add, edit, delete expenses with descriptions, dates, categories |
-| **Split Types**     | Equal · Percentage · Shares · Custom amounts                    |
-| **Balances**        | Real-time balance calculation across groups and friends         |
-| **Settle Up**       | Minimum-transaction debt simplification algorithm               |
-| **Payments**        | Record payments, auto-update balances                           |
-| **Activity Feed**   | Full history of all expense and payment events                  |
-| **Notifications**   | In-app notifications for new expenses and payments              |
-| **Comments**        | Per-expense comment threads                                     |
-| **Multi-currency**  | 20+ currencies with fallback exchange rates                     |
-| **Export**          | Download expenses as CSV or JSON                                |
-| **Search & Filter** | Filter expenses by keyword and category                         |
-| **PWA**             | Install on iOS/Android, works offline                           |
+### Accounts & security
 
-### Pro Features (flag `isPro = true` in the database)
+| Feature                | Description                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------- |
+| **Auth**               | Email + password signup/login with JWT sessions (30-day expiry)                                     |
+| **Google sign-in**     | Optional "Continue with Google" (enabled when `GOOGLE_CLIENT_ID/SECRET` are set)                    |
+| **Email verification** | Verification link emailed on sign-up; banner + "Resend" until verified (non-blocking)               |
+| **Two-factor auth**    | TOTP (Google Authenticator, Authy, 1Password…) with QR setup and 8 single-use recovery codes        |
+| **Password reset**     | Reset link is **emailed** (Resend). Without email configured, the link is only shown in local dev   |
+| **Rate limiting**      | Register, forgot-password, reset-password and reminders are rate limited (in-memory, per IP / pair) |
+| **Account deletion**   | Password-confirmed; personal data removed, shared history anonymised as "Deleted user"              |
+| **Profile**            | Avatar (Cloudinary), phone, bio, timezone, default currency, change password                        |
+| **Payment handles**    | Optional Venmo / PayPal.me / UPI ID shown to friends who owe you                                    |
+| **Languages**          | English, Español, Français, Deutsch, हिन्दी — navigation and key labels (Settings → Preferences)    |
 
-| Feature                 | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| **Analytics Dashboard** | Monthly spending, category breakdown, trend charts (Recharts) |
-| **Recurring Expenses**  | Templates that auto-generate on a schedule                    |
-| **Smart Settle-Up**     | Graph-based debt minimisation (O(n) transactions)             |
-| **Payment Links**       | Pre-fill settle-up flows with deep links                      |
-| **Export Reports**      | Extended CSV/JSON statements                                  |
+### Friends & groups
+
+| Feature             | Description                                                                                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Friend requests** | Send by email → recipient accepts or declines; sent requests can be cancelled                                                                                                                                             |
+| **Groups**          | Create, edit, delete; add members by email; admin role                                                                                                                                                                    |
+| **Invite links**    | Admins copy / revoke a `/join/<code>` link; anyone logged in can join                                                                                                                                                     |
+| **Leave group**     | Blocked while you have unsettled balances or if you are the last admin of others                                                                                                                                          |
+| **Simplify debts**  | Per-group toggle: minimum-payment suggestions, or the plain "who owes whom" list                                                                                                                                          |
+| **Default split**   | Per-group default (equal / percentage / shares) that pre-fills new expenses                                                                                                                                               |
+| **Archive groups**  | Archive hides a group and blocks new expenses; restore from the **Archived** tab                                                                                                                                          |
+| **Import**          | Import a Splitwise CSV export into a group: preview first, then one atomic bulk insert (up to 5,000 rows). Handles US `M/D/YY` dates, "Payment" and "Settle all balances" rows, and groups with more people than the file |
+
+### Expenses & money
+
+| Feature              | Description                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Expenses**         | Add, edit, delete with description, date, category, notes                                                                                                                      |
+| **Itemised splits**  | Add line items, assign each to people, and share tax & tip in proportion to what was ordered                                                                                   |
+| **Split types**      | Equal · Percentage · Shares · Custom amounts                                                                                                                                   |
+| **Receipts**         | Attach a receipt image to an expense; shown on the expense page                                                                                                                |
+| **Recurring**        | "Repeat this expense" (daily/weekly/monthly/yearly); a daily cron creates the copies                                                                                           |
+| **Currency display** | Every amount shows its own symbol; foreign amounts also show "≈ …" in your preferred currency                                                                                  |
+| **Multi-currency**   | 20+ currencies with live conversion to your preferred currency                                                                                                                 |
+| **Balances**         | Real-time balances across groups and friends                                                                                                                                   |
+| **Smart settle-up**  | Minimum-transaction debt simplification                                                                                                                                        |
+| **Activity feed**    | Grouped by day with filters; shows who did what, amounts, and your effect ("you lent" / "you owe")                                                                             |
+| **Payments**         | Calculated, not typed: the amount is the outstanding balance (read-only) and the server rejects anything above it; either person can record it; full **Payments** history page |
+| **Pay links**        | Venmo / PayPal / UPI deep links when you owe a friend who saved a handle                                                                                                       |
+| **Reminders**        | Nudge someone who owes you (in-app + email; 1 per person per hour)                                                                                                             |
+| **Comments**         | Per-expense comment threads                                                                                                                                                    |
+| **Search & filter**  | Filter expenses by keyword and category                                                                                                                                        |
+| **Analytics**        | Monthly spending, category breakdown, trends (Recharts)                                                                                                                        |
+| **Offline entry**    | Expenses added without a connection are saved on the device and synced when you're back online                                                                                 |
+| **Export**           | Download expenses as CSV or JSON, optionally for a date range                                                                                                                  |
+
+### Notifications
+
+| Feature      | Description                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| **In-app**   | Expenses, payments, friend requests, reminders, activity feed                            |
+| **Email**    | New-expense and reminder emails when `RESEND_API_KEY` + `EMAIL_FROM` are set             |
+| **Web push** | Optional push notifications on each device (VAPID keys required; Settings → Preferences) |
+| **PWA**      | Installable on iOS/Android; static assets cached                                         |
+
+### Not built (yet) — compared with Splitwise
+
+Splitlyst covers the day-to-day core of Splitwise, including several of its paid features, but it is not a
+byte-for-byte clone. Known gaps:
+
+- **Native iOS/Android apps** — it's an installable PWA instead.
+- **Editing an expense in the UI** — the API supports it (`PATCH /api/expenses/:id`) but there is no edit screen yet; delete and re-add.
+- **Group settings screen** — renaming a group / changing its currency or avatar, and promoting/demoting admins, are API-only or missing.
+- **People without an account** — friends and group members must already be registered; there are no email invites or placeholder members.
+- **Partial payments** — the settle-up amount is calculated and fixed to the full outstanding balance.
+- **Separate balances per currency** — amounts are converted into one currency instead of tracked per currency.
+- **Receipt OCR / auto-itemising**, **bank transaction import** and **in-app payments** (Venmo/PayPal/UPI are deep links only).
+- **Email change**, **comment edit/delete**, **notification preferences** (which emails/pushes you want), and **real-time sync** between devices.
 
 ---
 
@@ -67,12 +113,13 @@ A full-featured, open-source Splitwise alternative built with Next.js 15, Postgr
 
 | Layer         | Technology                                 | Version    |
 | ------------- | ------------------------------------------ | ---------- |
-| Framework     | [Next.js](https://nextjs.org) (App Router) | 15.x       |
+| Framework     | [Next.js](https://nextjs.org) (App Router) | **16.x**   |
 | Language      | TypeScript                                 | 5.8+       |
 | UI            | React                                      | 19.x       |
-| Styling       | Tailwind CSS                               | 3.4.x      |
-| Database ORM  | Prisma                                     | 6.x        |
-| Database      | PostgreSQL                                 | 14+        |
+| Styling       | Tailwind CSS                               | **4.x**    |
+| Database ORM  | Prisma                                     | **7.x**    |
+| Database      | PostgreSQL (via Supabase)                  | 14+        |
+| DB Driver     | `@prisma/adapter-pg` + `pg`                | —          |
 | Auth          | NextAuth.js (JWT)                          | 4.x        |
 | Data Fetching | TanStack Query                             | 5.x        |
 | Forms         | React Hook Form + Zod                      | 7.x / 3.x  |
@@ -80,10 +127,8 @@ A full-featured, open-source Splitwise alternative built with Next.js 15, Postgr
 | Icons         | Lucide React                               | 0.5xx      |
 | Node.js       | LTS                                        | **24.x**   |
 | Formatter     | Prettier + prettier-plugin-tailwindcss     | 3.x        |
-| Linter        | ESLint (flat config)                       | 9.x        |
+| Linter        | ESLint (flat config)                       | **10.x**   |
 | Git hooks     | Husky + lint-staged                        | 9.x / 15.x |
-
-> **Tailwind v4:** The project targets Tailwind CSS v3. Tailwind v4 introduces a CSS-first config system and is a breaking change. A migration guide will be added separately when needed.
 
 ---
 
@@ -136,16 +181,19 @@ npm install
 cp .env.example .env
 # → edit .env with your DATABASE_URL and NEXTAUTH_SECRET (see below)
 
-# 4. Push schema to database
+# 4. Generate Prisma client
+npx prisma generate
+
+# 5. Push schema to database
 npm run db:push
 
-# 5. (Optional) Seed with demo data
+# 6. (Optional) Seed with demo data
 npm run db:seed
 
-# 6. Generate PWA icons
+# 7. Generate PWA icons
 npm run icons
 
-# 7. Start development server
+# 8. Start development server
 npm run dev
 ```
 
@@ -161,13 +209,23 @@ Copy `.env.example` to `.env` and fill in the values:
 cp .env.example .env
 ```
 
-| Variable                | Required | Description                                                                               |
-| ----------------------- | :------: | ----------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          |    ✅    | PostgreSQL connection string                                                              |
-| `NEXTAUTH_SECRET`       |    ✅    | Random string ≥ 32 characters for JWT signing                                             |
-| `NEXTAUTH_URL`          |    ✅    | Full base URL of the app (e.g. `http://localhost:3000`)                                   |
-| `EXCHANGE_RATE_API_KEY` |    ❌    | Free key from [exchangerate-api.com](https://www.exchangerate-api.com/) for live FX rates |
-| `NEXT_PUBLIC_APP_URL`   |    ❌    | Same as `NEXTAUTH_URL` — used in OpenGraph metadata                                       |
+| Variable                                             | Required | Description                                                                               |
+| ---------------------------------------------------- | :------: | ----------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                       |    ✅    | PostgreSQL connection string                                                              |
+| `NEXTAUTH_SECRET`                                    |    ✅    | Random string ≥ 32 characters for JWT signing                                             |
+| `NEXTAUTH_URL`                                       |    ✅    | Full base URL of the app (e.g. `http://localhost:3000`)                                   |
+| `EXCHANGE_RATE_API_KEY`                              |    ❌    | Free key from [exchangerate-api.com](https://www.exchangerate-api.com/) for live FX rates |
+| `NEXT_PUBLIC_APP_URL`                                |    ❌    | Same as `NEXTAUTH_URL` — used in OpenGraph metadata                                       |
+| `CLOUDINARY_CLOUD_NAME`                              |    ❌    | Cloudinary cloud name for avatar uploads                                                  |
+| `CLOUDINARY_API_KEY`                                 |    ❌    | Cloudinary API key                                                                        |
+| `CLOUDINARY_API_SECRET`                              |    ❌    | Cloudinary API secret                                                                     |
+| `DIRECT_URL`                                         |    ❌    | Non-pooled DB URL — use it for `prisma db push` when `DATABASE_URL` is a pgbouncer pooler |
+| `RESEND_API_KEY`                                     |    ❌    | [Resend](https://resend.com) key — enables password-reset, expense and reminder emails    |
+| `EMAIL_FROM`                                         |    ❌    | Sender, e.g. `Splitlyst <noreply@yourdomain.com>` (must be a verified Resend sender)      |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` |    ❌    | Web push keys — generate with `npx web-push generate-vapid-keys`                          |
+| `VAPID_SUBJECT`                                      |    ❌    | `mailto:` contact for push services, e.g. `mailto:you@yourdomain.com`                     |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`          |    ❌    | Enables Google sign-in. Redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`           |
+| `CRON_SECRET`                                        |   ✅\*   | Secret for `/api/cron/recurring`. \*Required for recurring expenses to run                |
 
 ### Generate a strong secret
 
@@ -181,13 +239,43 @@ openssl rand -base64 32
 DATABASE_URL="postgresql://postgres:password@localhost:5432/splitlyst"
 NEXTAUTH_SECRET="abc123...your-32+-char-random-string"
 NEXTAUTH_URL="http://localhost:3000"
+CRON_SECRET="any-long-random-string"
+# Optional: RESEND_API_KEY / EMAIL_FROM for email, DIRECT_URL for migrations behind a pooler
 ```
 
 ---
 
 ## Database Setup
 
-### 1. Push schema (development / first deploy)
+### Prisma v7 configuration
+
+Prisma v7 moves datasource config out of `schema.prisma` and into `prisma.config.ts`. The `.env` file is loaded by the config file itself using Node's built-in `process.loadEnvFile()` — no `dotenv` package required.
+
+`prisma.config.ts`:
+
+```typescript
+import { defineConfig } from 'prisma/config';
+
+try {
+  process.loadEnvFile('.env');
+} catch {}
+
+export default defineConfig({
+  datasource: { url: process.env.DATABASE_URL },
+});
+```
+
+`prisma/schema.prisma` has no URL — it's fully managed by the config file.
+
+### 1. Generate Prisma client
+
+```bash
+npx prisma generate
+```
+
+This is run automatically on `npm install` via the `postinstall` script, and before every `npm run build`.
+
+### 2. Push schema (development / first deploy)
 
 ```bash
 npm run db:push
@@ -195,7 +283,7 @@ npm run db:push
 
 Prisma introspects `prisma/schema.prisma` and creates all tables without writing a migration file. Use this for local dev and initial deploys.
 
-### 2. Run migrations (production workflow)
+### 3. Run migrations (production workflow)
 
 ```bash
 npm run db:migrate
@@ -204,14 +292,16 @@ npm run db:migrate
 
 This creates a versioned SQL file in `prisma/migrations/` and applies it. Commit this file to source control.
 
-### 3. Open Prisma Studio (GUI browser for your data)
+### 4. Open Prisma Studio (GUI browser for your data)
 
 ```bash
 npm run db:studio
 # → opens http://localhost:5555
 ```
 
-### 4. Seed demo data
+> **Note:** Prisma Studio has a known compatibility issue with Node.js v22+. If it crashes with `ERR_STREAM_UNABLE_TO_PIPE`, run it with an older Node version: `nvm exec 20 npx prisma studio`
+
+### 5. Seed demo data
 
 ```bash
 npm run db:seed
@@ -291,13 +381,53 @@ Summary
 
 ---
 
-## Code Quality
+## Tests & Code Quality
+
+### Unit and API tests
+
+```bash
+npm test              # Jest — 123 tests (logic + API routes with mocked Prisma/auth)
+npm run test:watch
+```
+
+Route tests mock `@/lib/prisma` and `@/lib/auth`, so they need no database. Covered: split/balance
+math (incl. itemised tax/tip), TOTP (RFC 6238 vectors), rate limiting, email sending, i18n
+completeness, Splitwise CSV import, offline queue (incl. concurrent flush), the recurring-expense
+cron, friend requests, invite links and reminders.
+
+### End-to-end tests (real browser)
+
+32 Playwright tests drive Chromium against a **production build** of the app and the database in
+your `.env` (it creates throw-away users with `@e2e.test` emails; email is disabled for the run so
+nothing is sent).
+
+```bash
+npx playwright install chromium   # once
+npm run test:e2e                  # builds the app, starts it on :3100, runs the suite
+npx playwright show-report        # open the HTML report (screenshots/videos/traces on failure)
+```
+
+They cover registration, email verification, password reset, 2FA (including recovery codes),
+friend requests, groups, equal and itemised expenses, balances, reminders, settle-up, leaving a group,
+invite links, archiving, group settings, receipts, offline sync, recurring cron, Splitwise import,
+export, push subscriptions, language, payment links and account deletion.
+
+> E2E uses your real `DATABASE_URL`. Point it at a test database, not production.
+
+### Lint, format, types and build
+
+```bash
+npm run lint          # ESLint
+npm run format:check  # Prettier (use `npm run format` to fix)
+npx tsc --noEmit      # Type check
+npm run build         # Production build
+```
 
 The project uses **Prettier**, **ESLint**, and **Husky** to keep code consistently formatted and error-free from the first commit.
 
 ### Prettier
 
-[Prettier](https://prettier.io) enforces a single code style across TypeScript, JSON, CSS, and Markdown. Key settings (`prettier.config.ts`):
+[Prettier](https://prettier.io) enforces a single code style across TypeScript, JSON, CSS, and Markdown. Key settings (`prettier.config.mjs`):
 
 | Setting         | Value                         | Reason                                            |
 | --------------- | ----------------------------- | ------------------------------------------------- |
@@ -317,11 +447,13 @@ npm run format:check    # check without writing (used in CI)
 
 ### ESLint
 
-ESLint uses the **flat config** format (`eslint.config.mjs`) introduced in ESLint 9. The config extends:
+ESLint uses the **flat config** format (`eslint.config.mjs`) with ESLint 10. The config extends:
 
 - `next/core-web-vitals` — Next.js recommended rules
 - `next/typescript` — TypeScript-specific rules
 - `prettier` — disables all ESLint rules that conflict with Prettier (via `eslint-config-prettier`)
+
+No `FlatCompat` wrapper needed — `eslint-config-next` v16 exports native flat config arrays.
 
 ```bash
 npm run lint        # report issues
@@ -332,35 +464,7 @@ npm run lint:fix    # auto-fix where possible
 
 [Husky](https://typicode.github.io/husky/) registers a **pre-commit** git hook. Every time you `git commit`, [lint-staged](https://github.com/lint-staged/lint-staged) runs Prettier and ESLint **only on the files you staged** — fast feedback, zero noise.
 
-The pre-commit hook (`.husky/pre-commit`):
-
-```bash
-npx lint-staged
-```
-
-The lint-staged config (inside `package.json`):
-
-```json
-{
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx,mjs,cjs}": ["prettier --write", "eslint --fix"],
-    "*.{json,md,css,yaml,yml,toml}": ["prettier --write"]
-  }
-}
-```
-
 > **First-time setup:** Husky hooks are installed automatically when you run `npm install` because the `prepare` script runs `husky`. No manual step needed.
-
-### CI format check
-
-Add this step to your GitHub Actions workflow to block PRs with unformatted code:
-
-```yaml
-- name: Check formatting
-  run: npm run format:check
-- name: Lint
-  run: npm run lint
-```
 
 ---
 
@@ -390,6 +494,16 @@ In the Vercel dashboard → Project → Settings → Environment Variables, add:
 DATABASE_URL        = <your Supabase/Neon/Railway connection string>
 NEXTAUTH_SECRET     = <your 32+ char secret>
 NEXTAUTH_URL        = https://your-app.vercel.app
+CRON_SECRET         = <long random string>   # Vercel sends it as "Bearer ..." to the cron route
+RESEND_API_KEY      = <optional, enables email>
+EMAIL_FROM          = <optional, e.g. Splitlyst <noreply@yourdomain.com>>
+```
+
+`vercel.json` registers a daily cron (`0 6 * * *` UTC) for `/api/cron/recurring`. Cron jobs run only
+on production deployments. To trigger it manually:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://your-app.vercel.app/api/cron/recurring
 ```
 
 > Use the **"Direct connection"** (not pooled) string from Supabase for `prisma db push`.
@@ -403,12 +517,6 @@ vercel env pull .env.production.local
 
 # Push schema to production DB
 DATABASE_URL=$(grep DATABASE_URL .env.production.local | cut -d= -f2-) npx prisma db push
-```
-
-Or use Prisma's `--url` flag:
-
-```bash
-npx prisma db push --schema=prisma/schema.prisma
 ```
 
 ---
@@ -451,7 +559,12 @@ The service worker (`public/sw.js`) caches:
 splitlyst/
 ├── app/
 │   ├── (auth)/                   # Unauthenticated routes
-│   │   ├── login/page.tsx
+│   │   ├── login/
+│   │   │   ├── page.tsx          # Server component — wraps LoginForm in Suspense
+│   │   │   └── LoginForm.tsx     # Client component — sign-in form
+│   │   ├── reset-password/
+│   │   │   ├── page.tsx          # Server component — wraps ResetPasswordForm in Suspense
+│   │   │   └── ResetPasswordForm.tsx
 │   │   └── register/page.tsx
 │   ├── (dashboard)/              # Protected app routes
 │   │   ├── layout.tsx            # Sidebar + mobile nav wrapper
@@ -463,27 +576,39 @@ splitlyst/
 │   │   ├── friends/page.tsx      # Friend list + balances
 │   │   ├── expenses/
 │   │   │   ├── page.tsx          # All expenses (searchable/filterable)
-│   │   │   ├── new/page.tsx      # Add expense (all split types)
+│   │   │   ├── new/
+│   │   │   │   ├── page.tsx      # Server component — wraps form in Suspense
+│   │   │   │   └── NewExpenseForm.tsx  # Client component — full expense form
 │   │   │   └── [id]/page.tsx     # Expense detail + comments
 │   │   ├── activity/page.tsx     # Activity feed + notifications
-│   │   ├── analytics/page.tsx    # Charts (Pro)
+│   │   ├── analytics/page.tsx    # Charts
+│   │   ├── payments/page.tsx     # Payment history
+│   │   ├── join/[code]/page.tsx  # Join a group via invite link
 │   │   └── settings/page.tsx     # Profile, security, preferences
 │   ├── api/
 │   │   ├── auth/
 │   │   │   ├── [...nextauth]/    # NextAuth handler
-│   │   │   └── register/        # POST /api/auth/register
-│   │   ├── groups/              # CRUD + members
+│   │   │   ├── register/        # POST /api/auth/register
+│   │   │   ├── forgot-password/ # POST — send reset email
+│   │   ├── verify-email/    # GET confirm link · POST resend
+│   │   │   └── reset-password/  # POST — apply new password
+│   │   ├── groups/              # CRUD, members, invite links, join, archive
+│   │   ├── import/              # Splitwise CSV import
+│   │   ├── reminders/           # Settle-up reminders
+│   │   ├── push/                # Web-push subscribe / unsubscribe / config
+│   │   ├── cron/recurring/      # Daily recurring-expense job (CRON_SECRET)
 │   │   ├── expenses/            # CRUD + comments
 │   │   ├── payments/            # Record payments
-│   │   ├── friends/             # Add/remove friends
-│   │   ├── balances/            # Computed balances (no stored state)
+│   │   ├── friends/             # Friend requests (send/accept/remove)
+│   │   ├── balances/            # Computed balances with currency conversion
 │   │   ├── activity/            # Activity log
 │   │   ├── notifications/       # Read/mark-read
 │   │   ├── analytics/           # Spending stats (server-computed)
 │   │   ├── currency/            # FX rate lookup
 │   │   ├── export/              # CSV / JSON download
-│   │   └── users/me/            # Profile CRUD + password change
-│   ├── globals.css              # Tailwind base + custom component classes
+│   │   ├── upload/              # Avatar + receipt upload → Cloudinary
+│   │   └── users/me/            # Profile CRUD, password change, account deletion, 2fa/
+│   ├── globals.css              # Tailwind v4 @theme config + custom component classes
 │   ├── layout.tsx               # Root layout + PWA meta + SW registration
 │   └── page.tsx                 # Public landing page
 │
@@ -493,24 +618,36 @@ splitlyst/
 │   │   ├── mobile-nav.tsx       # Mobile bottom tab bar
 │   │   └── header.tsx           # Mobile top header
 │   ├── ui/
-│   │   ├── avatar.tsx           # Avatar + AvatarGroup
+│   │   ├── avatar.tsx           # Avatar + AvatarGroup (next/image with custom loader)
 │   │   ├── dropdown.tsx         # Accessible dropdown menu
 │   │   ├── empty-state.tsx      # Empty state placeholder
 │   │   ├── loading.tsx          # Spinner + skeleton loaders
 │   │   ├── modal.tsx            # Modal + ConfirmModal
 │   │   └── toaster.tsx          # Zero-dependency toast system
-│   └── providers.tsx            # SessionProvider + QueryClientProvider
+│   ├── settings/                # TwoFactorCard, PushToggle
+│   └── providers.tsx            # SessionProvider + QueryClientProvider + offline sync
 │
 ├── lib/
-│   ├── auth.ts                  # NextAuth options (JWT, credentials)
+│   ├── auth.ts                  # NextAuth options (JWT, credentials, currency in token)
 │   ├── calculations.ts          # Split logic + debt simplification
-│   ├── currency.ts              # Exchange rate fetch + convert
-│   ├── prisma.ts                # Singleton Prisma client
+│   ├── currency.ts              # Exchange rate fetch + convertAmount()
+│   ├── email.ts                 # Resend email sender (no-op when unconfigured)
+│   ├── i18n.ts / use-t.ts       # Translations + `useT()` hook (en, es, fr, de, hi)
+│   ├── notify.ts / push.ts      # In-app notification + web-push fan-out
+│   ├── offline-queue.ts         # Offline expense queue (localStorage, synced on reconnect)
+│   ├── totp.ts                  # RFC 6238 TOTP + recovery codes
+│   ├── verification.ts          # Email-verification tokens
+│   ├── group-balance.ts         # Net balance of a user in a group (leave-group check)
+│   ├── rate-limit.ts            # In-memory sliding-window rate limiter
+│   ├── splitwise-import.ts      # Splitwise CSV parser + import planner
+│   ├── prisma.ts                # Singleton Prisma client (PrismaPg adapter)
 │   └── utils.ts                 # cn(), formatCurrency, formatDate, …
 │
 ├── prisma/
-│   ├── schema.prisma            # Database schema (12 models)
-│   └── seed.ts                  # Demo data seeder
+│   ├── schema.prisma            # Database schema (16 models, no URL — see prisma.config.ts)
+│   └── seed.ts                  # Demo data seeder (uses PrismaPg adapter)
+│
+├── prisma.config.ts             # Prisma v7 config — loads .env, sets datasource URL
 │
 ├── public/
 │   ├── manifest.json            # PWA manifest
@@ -521,17 +658,22 @@ splitlyst/
 │   ├── generate-icons.js        # SVG → PNG icon generator
 │   └── test-connections.ts      # Verify DB + exchange rate API are reachable
 │
-├── types/
-│   └── index.ts                 # Shared TypeScript types + constants
+├── e2e/                         # Playwright browser tests (auth, money, security, features)
+├── playwright.config.ts         # Builds + serves the app on :3100 for E2E
 │
+├── __tests__/
+│   ├── lib/                     # Unit tests (calculations, utils, email, rate-limit, import, …)
+│   └── api/                     # Route tests with mocked Prisma/auth
+│
+├── types/
+│   └── index.ts                 # Shared TypeScript types + CURRENCIES constant
+│
+├── proxy.ts                     # Next.js 16 middleware (auth route protection)
 ├── .env.example                 # Template for environment variables
 ├── .nvmrc                       # Node.js version pin (24)
-├── .prettierignore              # Files excluded from Prettier formatting
-├── .husky/pre-commit            # Git pre-commit hook (runs lint-staged)
-├── eslint.config.mjs            # ESLint 9 flat config (includes prettier)
+├── eslint.config.mjs            # ESLint 10 native flat config
 ├── prettier.config.mjs          # Prettier config + tailwindcss plugin
-├── next.config.ts               # Next.js 15 TypeScript config
-├── tailwind.config.ts           # Tailwind CSS v3 config
+├── next.config.ts               # Next.js config (image remotePatterns)
 ├── tsconfig.json                # TypeScript strict mode
 └── vercel.json                  # Vercel deployment config
 ```
@@ -544,65 +686,83 @@ All API routes are under `/api`. All protected routes require a valid session co
 
 ### Auth
 
-| Method | Route                     | Description                                |
-| ------ | ------------------------- | ------------------------------------------ |
-| `POST` | `/api/auth/register`      | Create account `{ name, email, password }` |
-| `POST` | `/api/auth/[...nextauth]` | NextAuth sign-in / sign-out / session      |
+| Method | Route                           | Description                                |
+| ------ | ------------------------------- | ------------------------------------------ |
+| `POST` | `/api/auth/register`            | Create account `{ name, email, password }` |
+| `POST` | `/api/auth/[...nextauth]`       | NextAuth sign-in / sign-out / session      |
+| `POST` | `/api/auth/forgot-password`     | Send password reset email `{ email }`      |
+| `GET`  | `/api/auth/verify-email?token=` | Confirm email from the emailed link        |
+| `POST` | `/api/auth/verify-email`        | Resend verification email (signed in)      |
+| `POST` | `/api/auth/reset-password`      | Apply new password `{ token, password }`   |
 
 ### Groups
 
 | Method   | Route                     | Description                                                              |
 | -------- | ------------------------- | ------------------------------------------------------------------------ |
-| `GET`    | `/api/groups`             | List groups for current user                                             |
+| `GET`    | `/api/groups`             | List groups for current user (`?archived=true` for archived)             |
 | `POST`   | `/api/groups`             | Create group `{ name, description?, currency, category, memberEmails? }` |
 | `GET`    | `/api/groups/:id`         | Group detail with members, expenses, counts                              |
-| `PATCH`  | `/api/groups/:id`         | Update group (admin only)                                                |
+| `PATCH`  | `/api/groups/:id`         | Update group, `simplifyDebts`, `defaultSplit`, `isArchived` (admin only) |
 | `DELETE` | `/api/groups/:id`         | Delete group (admin only)                                                |
 | `POST`   | `/api/groups/:id/members` | Add member by email (admin only)                                         |
-| `DELETE` | `/api/groups/:id/members` | Remove member `{ userId }`                                               |
+| `DELETE` | `/api/groups/:id/members` | Remove member / leave `{ userId }` (blocked while unsettled)             |
+| `POST`   | `/api/groups/:id/invite`  | Create or rotate the invite link code (admin only)                       |
+| `DELETE` | `/api/groups/:id/invite`  | Revoke the invite link (admin only)                                      |
+| `GET`    | `/api/groups/join/:code`  | Preview the group behind an invite link                                  |
+| `POST`   | `/api/groups/join/:code`  | Join the group via invite link                                           |
+| `POST`   | `/api/import`             | Import Splitwise CSV `{ groupId, csv, dryRun?, mapping? }`               |
 
 ### Expenses
 
-| Method   | Route                        | Description                                                      |
-| -------- | ---------------------------- | ---------------------------------------------------------------- |
-| `GET`    | `/api/expenses`              | List expenses `?groupId= &friendId= &search= &category= &limit=` |
-| `POST`   | `/api/expenses`              | Create expense with splits                                       |
-| `GET`    | `/api/expenses/:id`          | Expense detail with splits, comments, attachments                |
-| `PATCH`  | `/api/expenses/:id`          | Update expense (payer only)                                      |
-| `DELETE` | `/api/expenses/:id`          | Delete expense (payer only)                                      |
-| `POST`   | `/api/expenses/:id/comments` | Add comment `{ text }`                                           |
+| Method   | Route                        | Description                                                                                                                                                           |
+| -------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/expenses`              | List expenses `?groupId= &friendId= &search= &category= &limit=`                                                                                                      |
+| `POST`   | `/api/expenses`              | Create expense with splits (`receiptUrl?`, `isRecurring?`, `recurringInterval?`; `splitType: "itemized"` takes `items[{name, amount, assignedTo[]}]`, `tax?`, `tip?`) |
+| `GET`    | `/api/expenses/:id`          | Expense detail with splits, comments, attachments                                                                                                                     |
+| `PATCH`  | `/api/expenses/:id`          | Update expense (payer only)                                                                                                                                           |
+| `DELETE` | `/api/expenses/:id`          | Delete expense (payer only)                                                                                                                                           |
+| `POST`   | `/api/expenses/:id/comments` | Add comment `{ text }`                                                                                                                                                |
 
 ### Payments & Balances
 
-| Method | Route                    | Description                                                         |
-| ------ | ------------------------ | ------------------------------------------------------------------- |
-| `GET`  | `/api/payments`          | List payments `?groupId=`                                           |
-| `POST` | `/api/payments`          | Record payment `{ receiverId, amount, currency, groupId?, notes? }` |
-| `GET`  | `/api/balances`          | Overall balances for current user                                   |
-| `GET`  | `/api/balances?groupId=` | Group-specific balances + simplified debts                          |
+| Method | Route                    | Description                                                                                                         |
+| ------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/payments`          | List payments `?groupId=`                                                                                           |
+| `POST` | `/api/payments`          | Record payment `{ payerId?, receiverId, amount, currency, groupId?, notes? }` — amount must not exceed what is owed |
+| `POST` | `/api/reminders`         | Remind someone to settle up `{ userId }` (1/hour per person)                                                        |
+| `GET`  | `/api/balances`          | Overall balances converted to user's preferred currency                                                             |
+| `GET`  | `/api/balances?groupId=` | Group balances converted to group's currency + simplified debts                                                     |
 
 ### Social
 
-| Method   | Route              | Description                         |
-| -------- | ------------------ | ----------------------------------- |
-| `GET`    | `/api/friends`     | List friends with friendship status |
-| `POST`   | `/api/friends`     | Add friend by email                 |
-| `DELETE` | `/api/friends/:id` | Remove friendship                   |
+| Method   | Route              | Description                                        |
+| -------- | ------------------ | -------------------------------------------------- |
+| `GET`    | `/api/friends`     | List friends and requests (`status`, `isIncoming`) |
+| `POST`   | `/api/friends`     | Send a friend request by email `{ email }`         |
+| `PATCH`  | `/api/friends/:id` | Accept a pending request (recipient only)          |
+| `DELETE` | `/api/friends/:id` | Remove friend / decline / cancel request           |
 
 ### Misc
 
-| Method  | Route                                | Description                                      |
-| ------- | ------------------------------------ | ------------------------------------------------ |
-| `GET`   | `/api/activity`                      | Activity feed `?groupId= &limit=`                |
-| `GET`   | `/api/notifications`                 | All notifications                                |
-| `GET`   | `/api/notifications?unreadOnly=true` | Unread count `{ count }`                         |
-| `PATCH` | `/api/notifications`                 | Mark read `{ id }` or `?markAllRead=true`        |
-| `GET`   | `/api/analytics?months=`             | Spending stats (monthly, category, top expenses) |
-| `GET`   | `/api/currency?from=&to=&amount=`    | FX rate conversion                               |
-| `GET`   | `/api/export?type=csv`               | Download expenses as CSV                         |
-| `GET`   | `/api/export?type=json`              | Download expenses as JSON                        |
-| `GET`   | `/api/users/me`                      | Current user profile                             |
-| `PATCH` | `/api/users/me`                      | Update profile or change password                |
+| Method   | Route                                | Description                                                            |
+| -------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| `GET`    | `/api/activity`                      | Activity feed `?groupId= &limit=`                                      |
+| `GET`    | `/api/notifications`                 | All notifications                                                      |
+| `GET`    | `/api/notifications?unreadOnly=true` | Unread count `{ count }`                                               |
+| `PATCH`  | `/api/notifications`                 | Mark read `{ id }` or `?markAllRead=true`                              |
+| `GET`    | `/api/analytics?months=`             | Spending stats (monthly, category, top expenses)                       |
+| `GET`    | `/api/currency?from=&to=&amount=`    | FX rate conversion                                                     |
+| `GET`    | `/api/export?type=csv`               | Download CSV (`&from=YYYY-MM-DD&to=YYYY-MM-DD` optional)               |
+| `GET`    | `/api/export?type=json`              | Download expenses as JSON                                              |
+| `POST`   | `/api/upload`                        | Upload image (`folder=avatars\|receipts`) → URL                        |
+| `GET`    | `/api/cron/recurring`                | Create due recurring expenses (needs `CRON_SECRET` bearer)             |
+| `GET`    | `/api/users/me`                      | Current user profile                                                   |
+| `PATCH`  | `/api/users/me`                      | Update profile, currency, timezone, payment handles, or password       |
+| `POST`   | `/api/users/me/2fa`                  | `{action: setup\|enable\|disable, code?, password?}` — TOTP two-factor |
+| `GET`    | `/api/push`                          | Push config `{ enabled, publicKey }`                                   |
+| `POST`   | `/api/push`                          | Save a push subscription (`PushSubscription` JSON)                     |
+| `DELETE` | `/api/push`                          | Remove a subscription `{ endpoint }`                                   |
+| `DELETE` | `/api/users/me`                      | Delete (anonymise) account `{ password }`                              |
 
 ---
 
@@ -636,6 +796,13 @@ Alice 2 shares, Bob 1 share → Alice $66.67, Bob $33.33
 
 Manually enter exact amounts per person. Must sum to the total (within ±$0.02 tolerance for rounding).
 
+### Itemized
+
+Add line items (e.g. pizza $30, salad $10) and tick who shared each one. Each item is split equally among
+its people; **tax and tip are shared in proportion to each person's item subtotal**. The total is
+`items + tax + tip` (the server rejects mismatches) and rounding differences go to the largest share so the
+splits always add up exactly.
+
 ---
 
 ## Balance Algorithm
@@ -650,6 +817,15 @@ net(A→B) = Σ splits[userId=B, expense.paidBy=A]
 ```
 
 **Debt simplification** (`lib/calculations.ts → simplifyDebts`) uses a greedy creditor/debtor matching algorithm that produces the minimum number of transactions needed to settle a group. For `n` people, at most `n-1` payments are needed regardless of how many expenses exist.
+
+### Multi-currency balances
+
+Every expense stores its original `currency`. The `/api/balances` endpoint converts all split amounts to a common target currency before summing:
+
+- **Overall balances** → converted to the user's preferred currency (`session.user.currency`)
+- **Group balances** → converted to the group's currency
+
+Exchange rates are fetched from [exchangerate-api.com](https://www.exchangerate-api.com/) with a 1-hour server-side cache, falling back to hardcoded rates if the API key is not set.
 
 ---
 
@@ -669,6 +845,36 @@ The seed creates a "Paris Trip 2024" group with three shared expenses (dinner, t
 
 ## Troubleshooting
 
+### `prisma db push` hangs or asks for `--accept-data-loss`
+
+Supabase's pooled URL (pgbouncer, port 6543) can hang on schema changes. Push with the direct URL:
+
+```bash
+set -a; . ./.env; set +a
+DATABASE_URL="$DIRECT_URL" npx prisma db push
+```
+
+Prisma warns about the unique `inviteCode` column; it is new and empty, so `--accept-data-loss` is safe there.
+
+### Locked out after enabling two-factor auth
+
+Use one of the 8 recovery codes in the "Authentication code" field. If you have none left, clear it in the
+database: `UPDATE users SET "totpEnabled" = false, "totpSecret" = NULL WHERE email = '…';`
+
+### Playwright can't launch a browser
+
+Run `npx playwright install chromium`. If port 3100 is busy, stop the other process (the tests start their own server).
+
+### Password reset email never arrives
+
+Set `RESEND_API_KEY` and `EMAIL_FROM` (a sender verified in Resend). Without them, the reset link is
+only returned in local development and nothing is sent in production.
+
+### Recurring expenses are not created
+
+The cron only runs on Vercel production, and `CRON_SECRET` must be set. Locally, trigger it with
+`curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/recurring`.
+
 ### Node version mismatch on `npm install`
 
 All packages now require **Node.js ≥ 24**. Switch versions with nvm:
@@ -679,24 +885,34 @@ nvm use          # reads .nvmrc automatically
 npm install
 ```
 
-### `npm audit` reports 2 moderate postcss vulnerabilities
+### Prisma Studio crashes with `ERR_STREAM_UNABLE_TO_PIPE`
 
-This is a **known false positive**. `npm audit` flags a postcss copy that is bundled _inside_ Next.js for its internal CSS build pipeline. It is not reachable from user input or application code.
+This is a known Prisma Studio incompatibility with Node.js v22+. Run it with Node 20 instead:
 
-The "fix" npm suggests (`npm audit fix --force`) would downgrade Next.js to v9 — **do not run it**. The Next.js team tracks this internally; it will be resolved in a future Next.js release.
+```bash
+nvm exec 20 npx prisma studio
+```
 
-### `npm install` shows deprecation warnings
+### `prisma db push` fails with "datasource.url is required"
 
-Remaining deprecation warnings (e.g. `inflight`, `rimraf@3`) come from deep transitive dependencies of `next-auth`. They do not affect runtime and will disappear when next-auth releases an updated dependency tree.
+`prisma.config.ts` loads `.env` using `process.loadEnvFile()`. Make sure your `.env` file exists in the project root and contains `DATABASE_URL`. On Vercel/CI the env vars are injected by the platform and no `.env` file is needed.
 
 ### `prisma generate` fails
 
-Make sure `DATABASE_URL` is set in `.env` and the database is accessible, then run:
+Make sure `DATABASE_URL` is set in `.env` and the database is accessible:
 
 ```bash
 npx prisma generate
 npx prisma db push
 ```
+
+### Balances show wrong currency symbol but same number
+
+This happens when the React Query cache for `['balances']` hasn't been invalidated after changing the preferred currency in Settings. The fix is already in place — saving Preferences now invalidates the balances cache, triggering a fresh fetch with the new currency conversion.
+
+### `npm audit` reports 2 moderate postcss vulnerabilities
+
+This is a **known false positive**. `npm audit` flags a postcss copy bundled _inside_ Next.js for its internal CSS pipeline. It is not reachable from user input or application code. The "fix" npm suggests would downgrade Next.js — **do not run it**.
 
 ### "Session not found" / auth redirect loops
 
@@ -706,16 +922,12 @@ npx prisma db push
 
 ### PWA icons show as blank
 
-Run `npm run icons` to generate the placeholder icons. Replace them with real PNGs before production:
+Run `npm run icons` to generate placeholder icons. Replace them with real PNGs before production:
 
 ```bash
 npm run icons
 # then replace public/icons/*.png with real artwork
 ```
-
-### Next.js 15 params type errors
-
-All `[id]` route handlers use `props: { params: Promise<{ id: string }> }` and `await props.params`. If you add new dynamic routes, follow the same pattern.
 
 ### Port already in use
 
@@ -728,42 +940,90 @@ npm run dev
 
 ## Upgrade Notes
 
-### From the original Next.js 14 scaffold
+### Feature release 4: import that actually saves
 
-This version includes these breaking-change upgrades:
+- **Imports were silently rolling back.** The route inserted one row at a time inside a single transaction; on a
+  remote database that cost ~0.8 s/row, so ~270 rows hit the 60 s limit and nothing was saved. It now inserts in
+  bulk in one atomic batch (4 statements regardless of size), returns JSON errors, and caps files at 5,000 rows.
+- Dates like `2/10/26` are parsed explicitly as US month/day (previously relied on `new Date()` guessing).
+- Categories are matched by keyword ("Transportation - Other" → transport, "Gas/fuel" → transport, "Heat/gas" → utilities).
+- **Groups show every expense.** The group page loaded only the newest 50 with no way to see more; it now has
+  "Show more" (cursor paging with a lighter `?view=list` payload).
+- The recurring-expense cron uses one atomic batch per template instead of an interactive transaction, which
+  could fail to start on a high-latency database.
 
-| Package               | Before | After  | Notes                                              |
-| --------------------- | ------ | ------ | -------------------------------------------------- |
-| `next`                | 14.2   | 15.x   | Async params in route handlers; security CVE fixed |
-| `react` / `react-dom` | 18.x   | 19.x   | Required by Next.js 15                             |
-| `eslint`              | 8.x    | 9.x    | New flat config (`eslint.config.mjs`)              |
-| `prisma`              | 5.10   | 6.x    | Node ≥ 18 required; query API unchanged            |
-| `date-fns`            | 3.x    | 4.x    | ESM-first; same function API                       |
-| Node.js               | any    | **24** | Set in `.nvmrc`                                    |
+### Feature release 3: payments, activity and currency polish
 
-**Removed packages** (were unused or had better alternatives):
+- **Payments are calculated.** The settle-up amount and currency are read-only; `POST /api/payments` rejects
+  amounts above what the payer owes (converted to the payment currency) and payments between two other people.
+  Either side of a debt can record it (`payerId` is optional). Settle links now carry `currency`/`payerId`.
+- **Friends no longer duplicate.** `ensureFriendship()` checks both directions; `GET /api/friends` collapses
+  legacy duplicates (accepted beats pending); removing a friend deletes every row for the pair.
+- **Currency everywhere.** New `<Money />` component (symbol + "≈" conversion), thousands separators, no cents
+  for JPY, ISO code for unknown currencies; activity/notification text no longer hardcodes `$`; analytics converts
+  each expense into your currency before summing.
+- **Activity page rebuilt.** Structured `metadata` on activities, day grouping, All/Expenses/Payments/Groups
+  filters, per-user impact, and notifications stay visible after they're read. Expenses you share with a friend
+  (no group) and payments to/from you now appear in the other person's feed too.
+- **Don't put `NODE_ENV` in `.env`.** Next.js sets it itself; a `development` value breaks production builds
+  (the Playwright config now ignores it).
 
-- `multer` → use `request.formData()` for file uploads
-- `uuid` → use `crypto.randomUUID()` (built into Node 22+)
-- `@next-auth/prisma-adapter` → not needed with JWT-only sessions
-- `@tanstack/react-query-devtools` → install separately in dev only
+### Feature release 2: complete feature set
 
-### Prettier + Husky (added in this release)
+- Removed the unused `isPro` column everywhere (schema, auth token, API, types).
+- New models: `ExpenseItem`, `EmailVerificationToken`, `PushSubscription`; new fields on `User` (`emailVerified`,
+  `totpSecret`, `totpEnabled`, `recoveryCodes`, `locale`), `Group` (`simplifyDebts`, `defaultSplit`) and `Expense` (`tax`, `tip`).
+- **Bugs found by the new browser tests and fixed:** password-reset pages were unreachable when signed out;
+  "Record Payment" silently did nothing (hidden required fields); direct-loading the expense form could submit
+  without a payer; desktop users had no group menu; the offline queue never ran (mutations pause offline by default);
+  SVG avatars were rejected by the image optimiser in production; saving redirected via `router.back()`.
 
-New devDependencies: `prettier`, `prettier-plugin-tailwindcss`, `eslint-config-prettier`, `husky`, `lint-staged`.
+### Feature release: all features free
 
-After `npm install`, Husky is set up automatically via the `prepare` script. The pre-commit hook runs `lint-staged` which formats and lints only staged files.
+- Removed the Pro upsell and `/api/users/upgrade`; analytics, recurring, export are available to everyone.
+- New schema fields: `Group.inviteCode`, `User.venmo`, `User.paypal`, `User.upi`. Run `prisma db push` (see Troubleshooting).
+- Friendships now start as `pending`; existing `accepted` friendships are unaffected.
+- New env vars: `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`, `DIRECT_URL` (optional).
 
-If you pulled this update and hooks are not running, re-initialize:
+This project has been migrated from the original Next.js 14 scaffold through the following major version upgrades:
 
-```bash
-npx husky init
-# then replace .husky/pre-commit content with: npx lint-staged
+| Package               | Before | After    | Notes                                                           |
+| --------------------- | ------ | -------- | --------------------------------------------------------------- |
+| `next`                | 14.2   | **16.x** | Async params; `middleware.ts` → `proxy.ts`; `next lint` removed |
+| `react` / `react-dom` | 18.x   | 19.x     | Required by Next.js 15+                                         |
+| `eslint`              | 8.x    | **10.x** | Native flat config; no `FlatCompat` needed                      |
+| `prisma`              | 5.10   | **7.x**  | Client engine; `prisma.config.ts`; `@prisma/adapter-pg` needed  |
+| `tailwindcss`         | 3.4    | **4.x**  | CSS-first config via `@theme` in `globals.css`                  |
+| Node.js               | any    | **24**   | Set in `.nvmrc`                                                 |
+
+### Key architectural changes
+
+**Prisma v7 — client engine + adapter**
+
+Prisma v7 defaults to a pure TypeScript client engine (no Rust binary). Connecting to PostgreSQL now requires `@prisma/adapter-pg`:
+
+```typescript
+// lib/prisma.ts
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+export const prisma = new PrismaClient({ adapter });
 ```
 
-### Tailwind CSS v4 (future)
+The datasource URL also moves from `schema.prisma` to `prisma.config.ts`. Any script that instantiates `PrismaClient` (e.g. seed scripts) must also pass the adapter.
 
-Tailwind v4 replaces `tailwind.config.ts` with CSS-native `@theme` blocks. Migration is non-trivial and not included here. When ready, follow the [official v4 upgrade guide](https://tailwindcss.com/docs/upgrade-guide).
+**Tailwind v4 — CSS-first config**
+
+`tailwind.config.ts` is replaced by a `@theme { }` block inside `app/globals.css`. All color tokens, fonts, and animations are defined there. The `@apply` directive can no longer reference custom `@layer components` classes — each variant must inline its own utilities.
+
+**Next.js 16 — middleware renamed**
+
+Next.js 16 renames the middleware entry point from `middleware.ts` to `proxy.ts`. The `next lint` CLI command is also removed — use `eslint .` directly.
+
+**ESLint 10 — native flat config**
+
+`eslint-config-next` v16 exports native flat config arrays. The `FlatCompat` wrapper is no longer needed. `eslint.config.mjs` imports `nextConfig` and `tsConfig` directly and spreads them.
 
 ---
 

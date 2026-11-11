@@ -11,6 +11,10 @@ const updateSchema = z.object({
   timezone: z.string().optional(),
   phone: z.string().optional().nullable(),
   bio: z.string().max(500).optional().nullable(),
+  venmo: z.string().max(60).optional().nullable(),
+  paypal: z.string().max(60).optional().nullable(),
+  upi: z.string().max(80).optional().nullable(),
+  locale: z.enum(['en', 'es', 'fr', 'de', 'hi']).optional(),
 });
 
 const passwordSchema = z.object({
@@ -33,7 +37,12 @@ export async function GET(_req: NextRequest) {
       timezone: true,
       phone: true,
       bio: true,
-      isPro: true,
+      venmo: true,
+      paypal: true,
+      upi: true,
+      emailVerified: true,
+      totpEnabled: true,
+      locale: true,
       createdAt: true,
       _count: {
         select: { paidExpenses: true, groupMembers: true, friendsAsA: true, friendsAsB: true },
@@ -80,7 +89,12 @@ export async function PATCH(req: NextRequest) {
         timezone: true,
         phone: true,
         bio: true,
-        isPro: true,
+        venmo: true,
+        paypal: true,
+        upi: true,
+        emailVerified: true,
+        totpEnabled: true,
+        locale: true,
       },
     });
     return NextResponse.json(user);
@@ -90,4 +104,50 @@ export async function PATCH(req: NextRequest) {
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+const deleteSchema = z.object({ password: z.string().min(1) });
+
+/**
+ * Delete the account. Because expenses/payments reference users, the account is anonymised
+ * (shared history stays consistent for other people) and all personal data is removed.
+ */
+export async function DELETE(req: NextRequest) {
+  const session = await getAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const parsed = deleteSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (!(await compare(parsed.data.password, user.password))) {
+    return NextResponse.json({ error: 'Password is incorrect' }, { status: 400 });
+  }
+
+  const id = user.id;
+  await prisma.$transaction([
+    prisma.passwordResetToken.deleteMany({ where: { userId: id } }),
+    prisma.notification.deleteMany({ where: { userId: id } }),
+    prisma.recurringTemplate.deleteMany({ where: { userId: id } }),
+    prisma.friendship.deleteMany({ where: { OR: [{ userAId: id }, { userBId: id }] } }),
+    prisma.user.update({
+      where: { id },
+      data: {
+        name: 'Deleted user',
+        email: `deleted-${id}@deleted.invalid`,
+        password: await hash(crypto.randomUUID(), 12),
+        avatar: null,
+        phone: null,
+        bio: null,
+        venmo: null,
+        paypal: null,
+        upi: null,
+      },
+    }),
+  ]);
+
+  return NextResponse.json({ success: true });
 }

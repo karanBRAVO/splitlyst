@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { ensureFriendship } from '@/lib/friends';
 import { z } from 'zod';
+import { getUserGroupNet } from '@/lib/group-balance';
 
 const addSchema = z.object({ email: z.string().email() });
 const removeSchema = z.object({ userId: z.string() });
@@ -44,12 +46,7 @@ export async function POST(req: NextRequest, props: Props) {
       select: { userId: true },
     });
     for (const existing of existingMembers) {
-      const [a, b] = [existing.userId, user.id].sort();
-      await prisma.friendship.upsert({
-        where: { userAId_userBId: { userAId: a, userBId: b } },
-        update: {},
-        create: { userAId: a, userBId: b, status: 'accepted' },
-      });
+      await ensureFriendship(existing.userId, user.id);
     }
 
     await prisma.activity.create({
@@ -81,10 +78,35 @@ export async function DELETE(req: NextRequest, props: Props) {
   });
   if (!currentMember) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
 
-  const { userId } = removeSchema.parse(await req.json());
+  const parsed = removeSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: 'userId required' }, { status: 400 });
+  const { userId } = parsed.data;
 
   if (userId !== session.user.id && currentMember.role !== 'admin') {
     return NextResponse.json({ error: 'Only admins can remove members' }, { status: 403 });
+  }
+
+  // Nobody can leave / be removed while they still owe or are owed money in the group
+  const net = await getUserGroupNet(groupId, userId);
+  if (Math.abs(net) >= 0.01) {
+    return NextResponse.json(
+      { error: 'Settle up all balances in this group before leaving or removing this member' },
+      { status: 400 },
+    );
+  }
+
+  // Keep at least one admin
+  if (currentMember.role === 'admin' && userId === session.user.id) {
+    const otherAdmins = await prisma.groupMember.count({
+      where: { groupId, role: 'admin', userId: { not: userId } },
+    });
+    const others = await prisma.groupMember.count({ where: { groupId, userId: { not: userId } } });
+    if (otherAdmins === 0 && others > 0) {
+      return NextResponse.json(
+        { error: 'Promote another member to admin before leaving' },
+        { status: 400 },
+      );
+    }
   }
 
   await prisma.groupMember.delete({

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { dedupeFriends } from '@/lib/friends';
+import { notify } from '@/lib/notify';
 import { z } from 'zod';
 
 export async function GET(_req: NextRequest) {
@@ -12,8 +14,28 @@ export async function GET(_req: NextRequest) {
       OR: [{ userAId: session.user.id }, { userBId: session.user.id }],
     },
     include: {
-      userA: { select: { id: true, name: true, avatar: true, email: true } },
-      userB: { select: { id: true, name: true, avatar: true, email: true } },
+      userA: {
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+          email: true,
+          venmo: true,
+          paypal: true,
+          upi: true,
+        },
+      },
+      userB: {
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+          email: true,
+          venmo: true,
+          paypal: true,
+          upi: true,
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -25,9 +47,10 @@ export async function GET(_req: NextRequest) {
     createdAt: f.createdAt,
     friend: f.userAId === session.user.id ? f.userB : f.userA,
     isRequester: f.userAId === session.user.id,
+    isIncoming: f.status === 'pending' && f.userBId === session.user.id,
   }));
 
-  return NextResponse.json(friends);
+  return NextResponse.json(dedupeFriends(friends));
 }
 
 const addSchema = z.object({ email: z.string().email() });
@@ -55,25 +78,43 @@ export async function POST(req: NextRequest) {
       },
     });
     if (existing) {
-      return NextResponse.json({ error: 'Already friends or request pending' }, { status: 409 });
+      // They already asked us: adding them back accepts their request.
+      if (existing.status === 'pending' && existing.userAId === target.id) {
+        const accepted = await prisma.friendship.update({
+          where: { id: existing.id },
+          data: { status: 'accepted' },
+          include: {
+            userA: { select: { id: true, name: true, avatar: true, email: true } },
+            userB: { select: { id: true, name: true, avatar: true, email: true } },
+          },
+        });
+        return NextResponse.json(accepted, { status: 200 });
+      }
+      return NextResponse.json(
+        {
+          error:
+            existing.status === 'pending'
+              ? 'Friend request already sent'
+              : 'You are already friends',
+        },
+        { status: 409 },
+      );
     }
 
     const friendship = await prisma.friendship.create({
-      data: { userAId: session.user.id, userBId: target.id, status: 'accepted' },
+      data: { userAId: session.user.id, userBId: target.id, status: 'pending' },
       include: {
         userA: { select: { id: true, name: true, avatar: true, email: true } },
         userB: { select: { id: true, name: true, avatar: true, email: true } },
       },
     });
 
-    await prisma.notification.create({
-      data: {
-        userId: target.id,
-        type: 'friend_added',
-        title: 'New friend',
-        message: `${session.user.name} added you as a friend`,
-        data: { userId: session.user.id },
-      },
+    await notify({
+      userId: target.id,
+      type: 'friend_request',
+      title: 'Friend request',
+      message: `${session.user.name} sent you a friend request`,
+      data: { userId: session.user.id },
     });
 
     return NextResponse.json(friendship, { status: 201 });

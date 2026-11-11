@@ -43,6 +43,8 @@ export function Avatar({ src, name, size = 'md', className, id }: AvatarProps) {
         alt={name}
         width={px}
         height={px}
+        // Next's image optimizer refuses SVGs (the generated fallback avatars are SVG)
+        unoptimized={/dicebear|\.svg(\?|$)/i.test(imgSrc)}
         className="h-full w-full object-cover"
         onError={(e) => {
           const target = e.target as HTMLImageElement;

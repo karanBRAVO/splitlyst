@@ -10,6 +10,7 @@ import {
   Receipt,
   Activity,
   BarChart3,
+  Wallet,
   Settings,
   LogOut,
   Zap,
@@ -17,14 +18,16 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
+import { useT } from '@/lib/use-t';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Groups', href: '/groups', icon: Users },
-  { name: 'Friends', href: '/friends', icon: UserPlus },
-  { name: 'Expenses', href: '/expenses', icon: Receipt },
-  { name: 'Activity', href: '/activity', icon: Activity },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3, pro: true },
+  { name: 'Dashboard', key: 'nav.dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Groups', key: 'nav.groups', href: '/groups', icon: Users },
+  { name: 'Friends', key: 'nav.friends', href: '/friends', icon: UserPlus },
+  { name: 'Expenses', key: 'nav.expenses', href: '/expenses', icon: Receipt },
+  { name: 'Payments', key: 'nav.payments', href: '/payments', icon: Wallet },
+  { name: 'Activity', key: 'nav.activity', href: '/activity', icon: Activity },
+  { name: 'Analytics', key: 'nav.analytics', href: '/analytics', icon: BarChart3 },
 ];
 
 export function Sidebar() {
@@ -32,6 +35,7 @@ export function Sidebar() {
   const { data: session } = useSession();
 
   const user = session?.user;
+  const t = useT();
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-white lg:flex">
@@ -41,7 +45,6 @@ export function Sidebar() {
           <Zap className="h-4 w-4 text-white" />
         </div>
         <span className="text-lg font-bold text-gray-900">Splitlyst</span>
-        {user?.isPro && <span className="badge badge-yellow ml-auto text-[10px]">PRO</span>}
       </div>
 
       {/* Quick Action */}
@@ -68,10 +71,7 @@ export function Sidebar() {
               )}
             >
               <item.icon className={cn('h-5 w-5', active ? 'text-brand-600' : 'text-gray-400')} />
-              <span>{item.name}</span>
-              {item.pro && !user?.isPro && (
-                <span className="badge badge-yellow ml-auto px-1.5 text-[9px]">PRO</span>
-              )}
+              <span>{t(item.key)}</span>
             </Link>
           );
         })}
@@ -91,7 +91,7 @@ export function Sidebar() {
           <Settings
             className={cn('h-5 w-5', pathname === '/settings' ? 'text-brand-600' : 'text-gray-400')}
           />
-          Settings
+          {t('nav.settings')}
         </Link>
 
         {user && (
@@ -104,7 +104,7 @@ export function Sidebar() {
             <button
               onClick={() => signOut({ callbackUrl: '/login' })}
               className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
-              title="Sign out"
+              title={t('nav.signOut')}
             >
               <LogOut className="h-4 w-4" />
             </button>

@@ -6,17 +6,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Currencies that have no minor unit (no cents)
+const ZERO_DECIMAL = new Set(['JPY']);
+
 export function formatCurrency(amount: number, currency = 'USD'): string {
+  const decimals = ZERO_DECIMAL.has(currency) ? 0 : 2;
+  const body = Math.abs(amount).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
   const curr = CURRENCIES.find((c) => c.code === currency);
-  if (!curr) {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  }
-  return `${curr.symbol}${Math.abs(amount).toFixed(2)}`;
+  // Unknown codes: show the ISO code rather than a wrong symbol
+  return `${curr ? curr.symbol : currency + ' '}${body}`;
 }
 
 export function formatDate(date: Date | string): string {

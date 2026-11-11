@@ -50,6 +50,47 @@ export function validateCustomSplits(total: number, participants: SplitParticipa
   return Math.abs(sum - total) < 0.02;
 }
 
+export interface ItemizedItem {
+  name?: string;
+  amount: number;
+  assignedTo: string[];
+}
+
+/**
+ * Split an itemised bill. Each item is shared equally by the people it is assigned to; tax and
+ * tip are shared in proportion to each person's item subtotal. Rounding differences are put on
+ * the person with the largest share so the splits always add up to items + tax + tip exactly.
+ */
+export function calculateItemizedSplits(
+  items: ItemizedItem[],
+  tax = 0,
+  tip = 0,
+): SplitParticipant[] {
+  const subtotals: Record<string, number> = {};
+  for (const item of items) {
+    if (item.assignedTo.length === 0) continue;
+    const each = item.amount / item.assignedTo.length;
+    for (const userId of item.assignedTo) subtotals[userId] = (subtotals[userId] || 0) + each;
+  }
+  const ids = Object.keys(subtotals);
+  const itemsTotal = Object.values(subtotals).reduce((a, b) => a + b, 0);
+  if (ids.length === 0 || itemsTotal <= 0) return [];
+
+  const extras = tax + tip;
+  const result = ids.map((userId) => ({
+    userId,
+    amount: roundToTwoDecimals(subtotals[userId] + extras * (subtotals[userId] / itemsTotal)),
+  }));
+
+  const target = roundToTwoDecimals(itemsTotal + extras);
+  const diff = roundToTwoDecimals(target - result.reduce((s, r) => s + r.amount, 0));
+  if (diff !== 0) {
+    const largest = result.reduce((m, r) => (r.amount > m.amount ? r : m), result[0]);
+    largest.amount = roundToTwoDecimals(largest.amount + diff);
+  }
+  return result;
+}
+
 export interface RawBalance {
   owesToUserId: string;
   owedByUserId: string;

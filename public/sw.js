@@ -1,5 +1,5 @@
-const CACHE_NAME = 'splitlyst-v1'
-const STATIC_CACHE = 'splitlyst-static-v1'
+const CACHE_NAME = 'splitlyst-v2'
+const STATIC_CACHE = 'splitlyst-static-v2'
 
 // Assets to cache immediately on install
 const PRECACHE_URLS = [

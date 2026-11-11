@@ -25,7 +25,6 @@ async function main() {
       name: 'Alice Johnson',
       password,
       currency: 'USD',
-      isPro: true,
     },
   });
 
@@ -177,7 +176,7 @@ async function main() {
 
   console.log('✅ Seed completed!');
   console.log('\nDemo accounts:');
-  console.log('  alice@example.com / demo1234 (Pro)');
+  console.log('  alice@example.com / demo1234');
   console.log('  bob@example.com / demo1234');
   console.log('  carol@example.com / demo1234');
 }

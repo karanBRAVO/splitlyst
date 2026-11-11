@@ -68,12 +68,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>{children}</Providers>
         <script
           dangerouslySetInnerHTML={{
-            __html: `
+            __html:
+              process.env.NODE_ENV === 'production'
+                ? `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').catch(function(err) {
                     console.log('SW registration failed: ', err);
                   });
+                });
+              }
+            `
+                : `
+              // Development: a cache-first service worker serves stale JS (dev chunk names don't change),
+              // so remove any worker + caches left over from earlier runs and reload once.
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  if (regs.length === 0) return;
+                  Promise.all(regs.map(function(r) { return r.unregister(); }))
+                    .then(function() { return caches.keys(); })
+                    .then(function(keys) { return Promise.all(keys.map(function(k) { return caches.delete(k); })); })
+                    .then(function() { location.reload(); });
                 });
               }
             `,

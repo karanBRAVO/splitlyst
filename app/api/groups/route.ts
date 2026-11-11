@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { ensureFriendship } from '@/lib/friends';
 import { z } from 'zod';
 
 const createSchema = z.object({
@@ -11,14 +12,14 @@ const createSchema = z.object({
   memberEmails: z.array(z.string().email()).optional(),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const groups = await prisma.group.findMany({
     where: {
       members: { some: { userId: session.user.id } },
-      isArchived: false,
+      isArchived: new URL(req.url).searchParams.get('archived') === 'true',
     },
     include: {
       members: {
@@ -71,12 +72,7 @@ export async function POST(req: NextRequest) {
         const allIds = [session.user.id, ...users.map((u) => u.id)];
         for (let i = 0; i < allIds.length; i++) {
           for (let j = i + 1; j < allIds.length; j++) {
-            const [a, b] = [allIds[i], allIds[j]].sort();
-            await prisma.friendship.upsert({
-              where: { userAId_userBId: { userAId: a, userBId: b } },
-              update: {},
-              create: { userAId: a, userBId: b, status: 'accepted' },
-            });
+            await ensureFriendship(allIds[i], allIds[j]);
           }
         }
       }

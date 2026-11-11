@@ -13,6 +13,7 @@ import { ConfirmModal } from '@/components/ui/modal';
 import { formatCurrency, formatDate, getCategoryEmoji } from '@/lib/utils';
 import { toast } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
+import { Money } from '@/components/ui/money';
 
 export default function ExpenseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,6 +75,7 @@ export default function ExpenseDetailPage() {
     equal: 'Split equally',
     percentage: 'Split by percentage',
     shares: 'Split by shares',
+    itemized: 'Itemized',
     custom: 'Custom split',
   };
 
@@ -108,7 +110,7 @@ export default function ExpenseDetailPage() {
               )}
               <div className="mt-2 flex items-center gap-3">
                 <span className="text-3xl font-bold text-gray-900">
-                  {formatCurrency(expense.amount, expense.currency)}
+                  <Money amount={expense.amount} currency={expense.currency} />
                 </span>
               </div>
             </div>
@@ -174,7 +176,7 @@ export default function ExpenseDetailPage() {
                     <div
                       className={cn('font-semibold', isPayer ? 'text-brand-600' : 'text-red-500')}
                     >
-                      {formatCurrency(split.amount, expense.currency)}
+                      <Money amount={split.amount} currency={expense.currency} />
                     </div>
                   </div>
                 );
@@ -182,6 +184,63 @@ export default function ExpenseDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Itemized breakdown */}
+        {expense.items?.length > 0 && (
+          <div className="card p-4" data-testid="items-breakdown">
+            <h2 className="mb-3 font-semibold text-gray-900">Items</h2>
+            <div className="space-y-1.5 text-sm">
+              {expense.items.map(
+                (it: { id: string; name: string; amount: number; assignedTo: string[] }) => (
+                  <div key={it.id} className="flex justify-between">
+                    <span className="text-gray-700">
+                      {it.name}{' '}
+                      <span className="text-xs text-gray-400">
+                        (
+                        {it.assignedTo
+                          .map(
+                            (uid) =>
+                              expense.splits?.find(
+                                (s: { userId: string; user: { name: string } }) => s.userId === uid,
+                              )?.user.name ?? '?',
+                          )
+                          .join(', ')}
+                        )
+                      </span>
+                    </span>
+                    <span>{formatCurrency(it.amount, expense.currency)}</span>
+                  </div>
+                ),
+              )}
+              {expense.tax > 0 && (
+                <div className="flex justify-between text-gray-500">
+                  <span>Tax</span>
+                  <span>{formatCurrency(expense.tax, expense.currency)}</span>
+                </div>
+              )}
+              {expense.tip > 0 && (
+                <div className="flex justify-between text-gray-500">
+                  <span>Tip</span>
+                  <span>{formatCurrency(expense.tip, expense.currency)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Receipt */}
+        {expense.receiptUrl && (
+          <div className="card p-4">
+            <h2 className="mb-3 font-semibold text-gray-900">Receipt</h2>
+            <a href={expense.receiptUrl} target="_blank" rel="noopener noreferrer">
+              <img
+                src={expense.receiptUrl}
+                alt="Receipt"
+                className="max-h-96 rounded-lg border border-gray-200 object-contain"
+              />
+            </a>
+          </div>
+        )}
 
         {/* Attachments */}
         {expense.attachments?.length > 0 && (

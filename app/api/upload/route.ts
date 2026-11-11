@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File must be under 5 MB' }, { status: 400 });
   }
 
+  const requestedFolder = formData.get('folder');
+  const folder = requestedFolder === 'receipts' ? 'receipts' : 'avatars';
+
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
   const crypto = await import('crypto');
   const signature = crypto
     .createHash('sha256')
-    .update(`folder=avatars&timestamp=${timestamp}${apiSecret}`)
+    .update(`folder=${folder}&timestamp=${timestamp}${apiSecret}`)
     .digest('hex');
 
   const uploadForm = new FormData();
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
   uploadForm.append('api_key', apiKey);
   uploadForm.append('timestamp', String(timestamp));
   uploadForm.append('signature', signature);
-  uploadForm.append('folder', 'avatars');
+  uploadForm.append('folder', folder);
 
   const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
     method: 'POST',
