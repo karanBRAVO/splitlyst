@@ -144,6 +144,22 @@ Browser ──► POST /api/agent/propose ──► lib/otari.ts ──► Otari
 - The inspector under each answer shows the model that actually answered, whether a backup was used, tokens/cost,
   tools run and guardrail verdicts.
 
+**Trip budget planner (web search)**
+
+The _Plan a trip_ tab takes a destination, days, people and style, and asks the `researcher` model to search the live
+web for typical prices. It exists because no API in the app has this data (exchange rates are _not_ looked up this way —
+the app already has an exchange-rate API for that). Safeguards:
+
+- Category amounts come from the model, but **every total, per-person and per-day figure is recomputed by the server**
+  (a model-reported total is ignored).
+- **Sources are the pages Otari's search tool actually returned**, de-duplicated and restricted to `http(s)` links —
+  never links the model wrote. If no search ran, the card says it is "a rough guess, not live data".
+- The destination is user-typed text, so it goes through the same prompt-injection guardrail as expense text.
+- Nothing is saved; "Create a group for this trip" just opens the new-group form pre-filled
+  (`/groups/new?name=…&category=trip&currency=…`).
+- It costs about **$0.02** per estimate (two searches plus the model) and takes ~20–40 s, so it uses a noticeable
+  share of the default $0.10/day allowance.
+
 **Models** (all open-weight, verified live on the account; override with `OTARI_MODEL_<ROLE>`)
 
 | Role    | Model                                                                 | Why                                                                                                                        |
@@ -151,6 +167,22 @@ Browser ──► POST /api/agent/propose ──► lib/otari.ts ──► Otari
 | Reader  | `alibaba/qwen3-30b-a3b-instruct-2507`                                 | ~2 s and cheapest of the non-reasoning candidates; `gpt-oss-120b` took 5–25 s and could run out of tokens while "thinking" |
 | Planner | routing policy `splitlyst-agent` (Qwen3-235B → backup `z-ai/glm-4.7`) | Fallback happens inside Otari                                                                                              |
 | Vision  | `alibaba/qwen3-vl-30b-a3b-instruct`                                   | Receipt reading (planned)                                                                                                  |
+
+**Guardrail setup (prompt injection)**
+
+Text people paste is untrusted, so the reader request names a prompt-injection guardrail in _block_ mode.
+
+1. In Otari: _Organization → Guardrails → Configure guardrail_ → risk type _Prompt injection_ → **Lakera Guard**
+   (needs a Lakera API key) → save. Use **Test** to check it flags "ignore your instructions…".
+2. _Mandate a guardrail_ → pick it, choose a **profile name** (e.g. `lakera-guard`), _what it checks: user input_.
+   A _Monitor_ mandate is fine: the app's request tightens it to _block_ for the reader call.
+3. Put that exact profile name in `.env` as `OTARI_GUARDRAIL_PROFILE=lakera-guard` and restart.
+
+It is opt-in: with the variable unset nothing is sent. **The name must match the mandate's profile name** — an
+unknown name makes Otari answer `502 guardrail profile '…' requested but no guardrails service is configured`
+(logged as `[agent] Otari error:` and shown to users as "unavailable"). A blocked message returns a plain
+explanation, saves nothing, and the inspector shows the flagged profile (Otari lists it in the error body, not the
+`Otari-Guardrails` header). The code-check (planner) call is not screened — it only sees app-built numbers.
 
 **Setup (hosted otari.ai)**
 
@@ -169,16 +201,16 @@ npm run test:e2e      # browser tests run against scripts/fake-otari.mjs — no 
 
 **Contest rubric status (MozFest Developers Wilding)** — updated as features land:
 
-| Otari capability                               | Status in the app                                                                                                                                                       |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Open-weight models (2+ for different purposes) | ✅ Reader (Qwen3-30B) and planner (Qwen3-235B via policy, GLM-4.7 backup) both run in the app; vision is planned                                                        |
-| Per-user budgets                               | ✅ `user` field per request, allowance meter, friendly refusal                                                                                                          |
-| Budgets and spending limits                    | ✅ per-user daily limit handled end to end; workspace ceiling is set in the Otari dashboard                                                                             |
-| Model routing and fallbacks                    | ✅ The planner is always called through the `splitlyst-agent` policy; the inspector shows the answering model and a "backup model used" badge (`Otari-Fallback` header) |
-| Code execution                                 | ✅ The planner runs a fixed Python snippet in Otari's sandbox to re-compute every split; the card shows a verified / mismatch badge                                     |
-| Web search / fetch                             | 🚧 planned (live exchange rates)                                                                                                                                        |
-| MCP integrations                               | 🚧 planned                                                                                                                                                              |
-| Guardrails                                     | 🚧 planned                                                                                                                                                              |
+| Otari capability                               | Status in the app                                                                                                                                                                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open-weight models (2+ for different purposes) | ✅ Reader (Qwen3-30B) and planner (Qwen3-235B via policy, GLM-4.7 backup) both run in the app; vision is planned                                                                                                     |
+| Per-user budgets                               | ✅ `user` field per request, allowance meter, friendly refusal                                                                                                                                                       |
+| Budgets and spending limits                    | ✅ per-user daily limit handled end to end; workspace ceiling is set in the Otari dashboard                                                                                                                          |
+| Model routing and fallbacks                    | ✅ The planner is always called through the `splitlyst-agent` policy; the inspector shows the answering model and a "backup model used" badge (`Otari-Fallback` header)                                              |
+| Code execution                                 | ✅ The planner runs a fixed Python snippet in Otari's sandbox to re-compute every split; the card shows a verified / mismatch badge                                                                                  |
+| Web search                                     | ✅ The _Plan a trip_ tab has a researcher model search the live web (Otari's built-in search, capped at 2 searches) for typical costs; the page lists the sources the tool actually returned                         |
+| MCP integrations                               | 🚧 planned                                                                                                                                                                                                           |
+| Guardrails                                     | ✅ Lakera Guard (prompt injection) is mandated in Otari and the reader request tightens it to _block_; verified live: normal text passes, an injection is refused with a plain message and the flagged profile shown |
 
 ---
 

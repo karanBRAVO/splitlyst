@@ -1,7 +1,8 @@
 // A tiny fake of the Otari gateway for browser tests: deterministic, free, and able to simulate
 // failures. Markers in the user's text trigger behaviours:
 //   [budget] -> 403 budget_exceeded   [down] -> 503   [fallback] -> backup model answered
-//   [junk]   -> reply that is not JSON  [guard] -> 403 guardrail_violation
+//   [junk]   -> reply that is not JSON  [guard] / "ignore all previous instructions" -> 403
+//   guardrail_violation (only when the request names a guardrail, like the real gateway)
 // Verifier (requests that declare otari_code_execution) also understands:
 //   [nocode] -> answers without running code   [wrong] -> a deliberately wrong split
 import http from 'node:http';
@@ -10,7 +11,7 @@ const PORT = Number(process.env.FAKE_OTARI_PORT || 3199);
 const spend = new Map(); // external user id -> spend
 const requests = new Map();
 let last = null;
-const lastBy = { reader: null, verifier: null }; // last request per kind
+const lastBy = { reader: null, verifier: null, trip: null }; // last request per kind
 
 function parseExpense(text) {
   const amount = Number((/(\d+(?:\.\d+)?)/.exec(text) || [])[1] || 0);
@@ -99,7 +100,8 @@ http
         const body = JSON.parse(raw || '{}');
         last = body;
         const isVerifier = (body.tools || []).some((t) => t.type === 'otari_code_execution');
-        lastBy[isVerifier ? 'verifier' : 'reader'] = body;
+        const isTrip = (body.tools || []).some((t) => t.type === 'otari_web_search');
+        lastBy[isTrip ? 'trip' : isVerifier ? 'verifier' : 'reader'] = body;
         const userMsg = [...(body.messages || [])].reverse().find((m) => m.role === 'user');
         const content = typeof userMsg?.content === 'string' ? userMsg.content : '';
         const text = (/<expense>([\s\S]*)<\/expense>/.exec(content) || [, content])[1];
@@ -111,8 +113,35 @@ http
             code: 'budget_exceeded',
             end_user: body.user,
           });
-        if (marked('[guard]'))
-          return send(res, 403, { detail: 'blocked', code: 'guardrail_violation' });
+        // A request that names a guardrail gets prompt-injection screening, like the real gateway
+        const guard = (body.guardrails || [])[0];
+        const injection =
+          /ignore (all )?(your |previous |prior )*instructions|reveal your system prompt/i.test(
+            content,
+          ) || marked('[guard]');
+        const guardHeader = (valid) =>
+          guard
+            ? {
+                'Otari-Guardrails': JSON.stringify([
+                  {
+                    profile: guard.profile,
+                    mode: guard.mode || 'block',
+                    valid,
+                    score: valid ? 0.01 : 0.99,
+                    status: 'evaluated',
+                  },
+                ]),
+              }
+            : {};
+        if (guard && injection)
+          // the real gateway nests the error and lists flagged profiles in the body (no header)
+          return send(res, 403, {
+            detail: {
+              message: 'Request blocked by guardrail policy.',
+              code: 'guardrail_violation',
+              guardrails: [{ profile: guard.profile, explanation: null, score: 1 }],
+            },
+          });
         if (marked('[down]')) return send(res, 503, { detail: 'upstream down' });
 
         const cost = 0.0123;
@@ -133,6 +162,74 @@ http
           total_tokens: 85,
           cost_usd: String(cost),
         };
+
+        // Trip planner request: the researcher searches the web and estimates costs
+        if ((body.tools || []).some((t) => t.type === 'otari_web_search')) {
+          let trip = null;
+          try {
+            trip = JSON.parse((/<trip>([\s\S]*)<\/trip>/.exec(content) || [])[1]);
+          } catch {}
+          if (!trip) return send(res, 400, { detail: 'bad trip input' });
+          const perPersonPerDay =
+            { budget: 1500, 'mid-range': 3500, comfortable: 8000 }[trip.style] || 3500;
+          const total = perPersonPerDay * trip.days * trip.people;
+          const share = {
+            Stay: 0.4,
+            Food: 0.25,
+            'Local transport': 0.15,
+            Activities: 0.15,
+            Other: 0.05,
+          };
+          const categories = Object.entries(share).map(([name, f]) => ({
+            name,
+            amount: Math.round(total * f * 100) / 100,
+            note: `typical ${name.toLowerCase()} costs`,
+          }));
+          const researcher = fallback ? 'zai-org/GLM-4.7' : 'Qwen/Qwen3-235B-A22B-Instruct-2507';
+          const reply = marked('[badjson]')
+            ? 'I could not find enough information.'
+            : JSON.stringify({
+                // a deliberately wrong "total" the server must ignore: it recomputes from categories
+                total: 1,
+                summary: `Rough ${trip.style} costs for ${trip.people} people for ${trip.days} days.`,
+                categories,
+              });
+          return send(
+            res,
+            200,
+            {
+              model: researcher,
+              choices: [{ message: { role: 'assistant', content: reply } }],
+              usage: { ...usage, cost_usd: '0.0105' },
+              ...(marked('[nosearch]')
+                ? {}
+                : {
+                    otari_tool_calls: [
+                      {
+                        id: 'otari_ws_fake',
+                        type: 'web_search',
+                        status: 'completed',
+                        query: `typical travel costs ${trip.destination}`,
+                        sources: [
+                          {
+                            url: 'https://example.com/travel-costs',
+                            title: 'Typical travel costs 2026',
+                          },
+                          { url: 'https://example.org/where-to-stay', title: 'Where to stay' },
+                          {
+                            url: 'https://example.com/travel-costs',
+                            title: 'Duplicate of the first',
+                          },
+                          { url: 'javascript:alert(1)', title: 'Hostile link' },
+                          { url: 'not a url', title: 'Garbage' },
+                        ],
+                      },
+                    ],
+                  }),
+            },
+            { ...hdrs, 'Otari-Model': researcher, ...guardHeader(true) },
+          );
+        }
 
         // Verifier request: the planner computes the split with code
         if ((body.tools || []).some((t) => t.type === 'otari_code_execution')) {
@@ -188,7 +285,7 @@ http
           res,
           200,
           { model, choices: [{ message: { role: 'assistant', content: reply } }], usage },
-          hdrs,
+          { ...hdrs, ...guardHeader(true) },
         );
       });
       return;

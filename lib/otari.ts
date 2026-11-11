@@ -61,6 +61,9 @@ export type OtariErrorKind =
   | 'bad_request';
 
 export class OtariError extends Error {
+  /** What Otari reported even though the request failed (e.g. the guardrail verdict on a block) */
+  inspector?: OtariInspector;
+
   constructor(
     message: string,
     public readonly kind: OtariErrorKind,
@@ -104,6 +107,7 @@ export interface ChatResult {
 
 interface GatewayResponse {
   model?: string;
+  detail?: unknown;
   choices?: Array<{ message?: { content?: string | null } }>;
   usage?: {
     prompt_tokens?: number;
@@ -130,9 +134,16 @@ export function toOtariError(status: number, body: unknown): OtariError {
     code?: string;
     error?: { message?: string; code?: string };
   };
-  const code = b.code ?? b.error?.code ?? '';
+  // Otari reports errors two ways: top-level `{detail: "text", code}` and, for guardrail blocks,
+  // a nested `{detail: {message, code, guardrails: [...]}}`. Read both.
+  const nested =
+    b.detail && typeof b.detail === 'object'
+      ? (b.detail as { message?: string; code?: string })
+      : null;
+  const code = b.code ?? nested?.code ?? b.error?.code ?? '';
   const message =
     (typeof b.detail === 'string' && b.detail) ||
+    nested?.message ||
     b.error?.message ||
     `Otari request failed (${status})`;
   if (status === 402) return new OtariError(message, 'insufficient_funds', status, body);
@@ -143,6 +154,44 @@ export function toOtariError(status: number, body: unknown): OtariError {
   if (status === 429) return new OtariError(message, 'rate_limited', status, body);
   if (status === 400 || status === 422) return new OtariError(message, 'bad_request', status, body);
   return new OtariError(message, 'unavailable', status, body);
+}
+
+/** On a block Otari omits the header and lists the flagged profiles in `detail.guardrails`. */
+function blockedGuardrails(json: GatewayResponse): Array<Record<string, unknown>> | null {
+  const d = json.detail;
+  const list = d && typeof d === 'object' ? (d as { guardrails?: unknown }).guardrails : null;
+  if (!Array.isArray(list) || list.length === 0) return null;
+  return list.map((g) => ({ mode: 'block', ...(g as Record<string, unknown>), valid: false }));
+}
+
+function buildInspector(role: OtariRole, res: Response, json: GatewayResponse): OtariInspector {
+  const cost = json.usage?.cost_usd !== undefined ? Number(json.usage.cost_usd) : null;
+  return {
+    role,
+    model: res.headers.get('Otari-Model') ?? json.model ?? null,
+    fallback: res.headers.get('Otari-Fallback') === 'true',
+    guardrails: parseJsonHeader(res.headers.get('Otari-Guardrails')) ?? blockedGuardrails(json),
+    endUserBudget: res.headers.get('Otari-End-User-Budget'),
+    usage: json.usage
+      ? {
+          promptTokens: json.usage.prompt_tokens ?? 0,
+          completionTokens: json.usage.completion_tokens ?? 0,
+          totalTokens: json.usage.total_tokens ?? 0,
+          costUsd: cost !== null && Number.isFinite(cost) ? cost : null,
+        }
+      : null,
+    toolCalls: Array.isArray(json.otari_tool_calls) ? json.otari_tool_calls : [],
+  };
+}
+
+/**
+ * The guardrail profile to enforce on user-supplied text, or undefined when none is configured.
+ * Opt-in on purpose: naming a profile Otari doesn't know yet would make every request fail, so the
+ * app only sends it once OTARI_GUARDRAIL_PROFILE is set (after the guardrail exists in the dashboard).
+ */
+export function agentGuardrails(): Array<{ profile: string; mode: 'block' }> | undefined {
+  const profile = process.env.OTARI_GUARDRAIL_PROFILE?.trim();
+  return profile ? [{ profile, mode: 'block' }] : undefined;
 }
 
 export async function chat(options: ChatOptions): Promise<ChatResult> {
@@ -180,30 +229,17 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
   }
 
   const json = (await res.json().catch(() => ({}))) as GatewayResponse;
-  if (!res.ok) throw toOtariError(res.status, json);
-
-  const cost = json.usage?.cost_usd !== undefined ? Number(json.usage.cost_usd) : null;
-  const usage = json.usage
-    ? {
-        promptTokens: json.usage.prompt_tokens ?? 0,
-        completionTokens: json.usage.completion_tokens ?? 0,
-        totalTokens: json.usage.total_tokens ?? 0,
-        costUsd: cost !== null && Number.isFinite(cost) ? cost : null,
-      }
-    : null;
+  const inspector = buildInspector(options.role, res, json);
+  if (!res.ok) {
+    const err = toOtariError(res.status, json);
+    err.inspector = inspector;
+    throw err;
+  }
 
   return {
     content: json.choices?.[0]?.message?.content ?? '',
     raw: json as Record<string, unknown>,
-    inspector: {
-      role: options.role,
-      model: res.headers.get('Otari-Model') ?? json.model ?? null,
-      fallback: res.headers.get('Otari-Fallback') === 'true',
-      guardrails: parseJsonHeader(res.headers.get('Otari-Guardrails')),
-      endUserBudget: res.headers.get('Otari-End-User-Budget'),
-      usage,
-      toolCalls: Array.isArray(json.otari_tool_calls) ? json.otari_tool_calls : [],
-    },
+    inspector,
   };
 }
 
@@ -250,7 +286,8 @@ export function describeOtariError(err: unknown): {
       budget_exceeded:
         "You've used today's AI allowance. It resets automatically — try again later.",
       insufficient_funds: 'The AI workspace is out of credit right now.',
-      guardrail_violation: 'That request was blocked by a safety guardrail.',
+      guardrail_violation:
+        'That message was blocked by a safety check because it looks like an attempt to manipulate the assistant. Describe the expense in plain words instead.',
       rate_limited: 'The AI is busy. Please try again in a moment.',
       unavailable: 'The AI service is unavailable right now. Please try again.',
       bad_request: 'The AI could not process that request.',
