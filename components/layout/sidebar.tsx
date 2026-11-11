@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Users,
@@ -11,6 +12,7 @@ import {
   Activity,
   BarChart3,
   Wallet,
+  Sparkles,
   Settings,
   LogOut,
   Zap,
@@ -26,6 +28,7 @@ const navigation = [
   { name: 'Friends', key: 'nav.friends', href: '/friends', icon: UserPlus },
   { name: 'Expenses', key: 'nav.expenses', href: '/expenses', icon: Receipt },
   { name: 'Payments', key: 'nav.payments', href: '/payments', icon: Wallet },
+  { name: 'AI Agent', key: 'nav.agent', href: '/agent', icon: Sparkles, ai: true },
   { name: 'Activity', key: 'nav.activity', href: '/activity', icon: Activity },
   { name: 'Analytics', key: 'nav.analytics', href: '/analytics', icon: BarChart3 },
 ];
@@ -36,6 +39,13 @@ export function Sidebar() {
 
   const user = session?.user;
   const t = useT();
+  // The AI Agent link only shows when the server has Otari configured
+  const { data: agentStatus } = useQuery({
+    queryKey: ['agent-status'],
+    queryFn: () => fetch('/api/agent/status').then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+  const agentEnabled = agentStatus?.enabled === true;
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-white lg:flex">
@@ -57,24 +67,26 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2">
-        {navigation.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href + '/');
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                'mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-                active
-                  ? 'bg-brand-50 text-brand-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-              )}
-            >
-              <item.icon className={cn('h-5 w-5', active ? 'text-brand-600' : 'text-gray-400')} />
-              <span>{t(item.key)}</span>
-            </Link>
-          );
-        })}
+        {navigation
+          .filter((item) => !('ai' in item && item.ai) || agentEnabled)
+          .map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href + '/');
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  'mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                  active
+                    ? 'bg-brand-50 text-brand-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                )}
+              >
+                <item.icon className={cn('h-5 w-5', active ? 'text-brand-600' : 'text-gray-400')} />
+                <span>{t(item.key)}</span>
+              </Link>
+            );
+          })}
       </nav>
 
       {/* User section */}
