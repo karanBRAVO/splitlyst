@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { signIn, getProviders } from 'next-auth/react';
+import { useState } from 'react';
+import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/components/ui/toaster';
 import { Spinner } from '@/components/ui/loading';
+import { GoogleButton } from '@/components/auth/google-button';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -25,11 +26,6 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [needsCode, setNeedsCode] = useState(false);
   const [code, setCode] = useState('');
-  const [hasGoogle, setHasGoogle] = useState(false);
-
-  useEffect(() => {
-    getProviders().then((p) => setHasGoogle(!!p?.google));
-  }, []);
 
   const {
     register,
@@ -140,21 +136,7 @@ export default function LoginForm() {
         </button>
       </form>
 
-      {hasGoogle && (
-        <>
-          <div className="my-4 flex items-center gap-3 text-xs text-gray-400">
-            <div className="h-px flex-1 bg-gray-200" /> or{' '}
-            <div className="h-px flex-1 bg-gray-200" />
-          </div>
-          <button
-            type="button"
-            onClick={() => signIn('google', { callbackUrl })}
-            className="btn btn-secondary btn-lg w-full"
-          >
-            Continue with Google
-          </button>
-        </>
-      )}
+      <GoogleButton callbackUrl={callbackUrl} />
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Don&apos;t have an account?{' '}
