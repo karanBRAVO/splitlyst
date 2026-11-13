@@ -35,18 +35,18 @@ Everything is free — there are no paid tiers, expense caps, or ads.
 
 ### Accounts & security
 
-| Feature                | Description                                                                                         |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| **Auth**               | Email + password signup/login with JWT sessions (30-day expiry)                                     |
-| **Google sign-in**     | Optional "Continue with Google" (enabled when `GOOGLE_CLIENT_ID/SECRET` are set)                    |
-| **Email verification** | Verification link emailed on sign-up; banner + "Resend" until verified (non-blocking)               |
-| **Two-factor auth**    | TOTP (Google Authenticator, Authy, 1Password…) with QR setup and 8 single-use recovery codes        |
-| **Password reset**     | Reset link is **emailed** (Resend). Without email configured, the link is only shown in local dev   |
-| **Rate limiting**      | Register, forgot-password, reset-password and reminders are rate limited (in-memory, per IP / pair) |
-| **Account deletion**   | Password-confirmed; personal data removed, shared history anonymised as "Deleted user"              |
-| **Profile**            | Avatar (Cloudinary), phone, bio, timezone, default currency, change password                        |
-| **Payment handles**    | Optional Venmo / PayPal.me / UPI ID shown to friends who owe you                                    |
-| **Languages**          | English, Español, Français, Deutsch, हिन्दी — navigation and key labels (Settings → Preferences)    |
+| Feature                | Description                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Auth**               | Email + password signup/login with JWT sessions (30-day expiry)                                                 |
+| **Google sign-in**     | Optional "Continue with Google" (enabled when `GOOGLE_CLIENT_ID/SECRET` are set)                                |
+| **Email verification** | Verification link emailed on sign-up; banner + "Resend" until verified (non-blocking)                           |
+| **Two-factor auth**    | TOTP (Google Authenticator, Authy, 1Password…) with QR setup and 8 single-use recovery codes                    |
+| **Password reset**     | Reset link is **emailed** (Gmail SMTP or Resend). Without email configured, the link is only shown in local dev |
+| **Rate limiting**      | Register, forgot-password, reset-password and reminders are rate limited (in-memory, per IP / pair)             |
+| **Account deletion**   | Password-confirmed; personal data removed, shared history anonymised as "Deleted user"                          |
+| **Profile**            | Avatar (Cloudinary), phone, bio, timezone, default currency, change password                                    |
+| **Payment handles**    | Optional Venmo / PayPal.me / UPI ID shown to friends who owe you                                                |
+| **Languages**          | English, Español, Français, Deutsch, हिन्दी — navigation and key labels (Settings → Preferences)                |
 
 ### Friends & groups
 
@@ -89,7 +89,7 @@ Everything is free — there are no paid tiers, expense caps, or ads.
 | Feature      | Description                                                                              |
 | ------------ | ---------------------------------------------------------------------------------------- |
 | **In-app**   | Expenses, payments, friend requests, reminders, activity feed                            |
-| **Email**    | New-expense and reminder emails when `RESEND_API_KEY` + `EMAIL_FROM` are set             |
+| **Email**    | New-expense and reminder emails when an email provider (SMTP or Resend) is configured    |
 | **Web push** | Optional push notifications on each device (VAPID keys required; Settings → Preferences) |
 | **PWA**      | Installable on iOS/Android; static assets cached                                         |
 
@@ -209,23 +209,25 @@ Copy `.env.example` to `.env` and fill in the values:
 cp .env.example .env
 ```
 
-| Variable                                             | Required | Description                                                                               |
-| ---------------------------------------------------- | :------: | ----------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                       |    ✅    | PostgreSQL connection string                                                              |
-| `NEXTAUTH_SECRET`                                    |    ✅    | Random string ≥ 32 characters for JWT signing                                             |
-| `NEXTAUTH_URL`                                       |    ✅    | Full base URL of the app (e.g. `http://localhost:3000`)                                   |
-| `EXCHANGE_RATE_API_KEY`                              |    ❌    | Free key from [exchangerate-api.com](https://www.exchangerate-api.com/) for live FX rates |
-| `NEXT_PUBLIC_APP_URL`                                |    ❌    | Same as `NEXTAUTH_URL` — used in OpenGraph metadata                                       |
-| `CLOUDINARY_CLOUD_NAME`                              |    ❌    | Cloudinary cloud name for avatar uploads                                                  |
-| `CLOUDINARY_API_KEY`                                 |    ❌    | Cloudinary API key                                                                        |
-| `CLOUDINARY_API_SECRET`                              |    ❌    | Cloudinary API secret                                                                     |
-| `DIRECT_URL`                                         |    ❌    | Non-pooled DB URL — use it for `prisma db push` when `DATABASE_URL` is a pgbouncer pooler |
-| `RESEND_API_KEY`                                     |    ❌    | [Resend](https://resend.com) key — enables password-reset, expense and reminder emails    |
-| `EMAIL_FROM`                                         |    ❌    | Sender, e.g. `Splitlyst <noreply@yourdomain.com>` (must be a verified Resend sender)      |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` |    ❌    | Web push keys — generate with `npx web-push generate-vapid-keys`                          |
-| `VAPID_SUBJECT`                                      |    ❌    | `mailto:` contact for push services, e.g. `mailto:you@yourdomain.com`                     |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`          |    ❌    | Enables Google sign-in. Redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`           |
-| `CRON_SECRET`                                        |   ✅\*   | Secret for `/api/cron/recurring`. \*Required for recurring expenses to run                |
+| Variable                                             | Required | Description                                                                                                                                                                                         |
+| ---------------------------------------------------- | :------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                       |    ✅    | PostgreSQL connection string                                                                                                                                                                        |
+| `NEXTAUTH_SECRET`                                    |    ✅    | Random string ≥ 32 characters for JWT signing                                                                                                                                                       |
+| `NEXTAUTH_URL`                                       |    ✅    | Full base URL of the app (e.g. `http://localhost:3000`)                                                                                                                                             |
+| `EXCHANGE_RATE_API_KEY`                              |    ❌    | Free key from [exchangerate-api.com](https://www.exchangerate-api.com/) for live FX rates                                                                                                           |
+| `NEXT_PUBLIC_APP_URL`                                |    ❌    | Same as `NEXTAUTH_URL` — used in OpenGraph metadata                                                                                                                                                 |
+| `CLOUDINARY_CLOUD_NAME`                              |    ❌    | Cloudinary cloud name for avatar uploads                                                                                                                                                            |
+| `CLOUDINARY_API_KEY`                                 |    ❌    | Cloudinary API key                                                                                                                                                                                  |
+| `CLOUDINARY_API_SECRET`                              |    ❌    | Cloudinary API secret                                                                                                                                                                               |
+| `DIRECT_URL`                                         |    ❌    | Non-pooled DB URL — use it for `prisma db push` when `DATABASE_URL` is a pgbouncer pooler                                                                                                           |
+| `SMTP_USER` / `SMTP_PASS`                            |    ❌    | **Free email, no domain needed:** a Gmail address + [app password](https://support.google.com/accounts/answer/185833). Optional `SMTP_HOST` (default `smtp.gmail.com`), `SMTP_PORT` (default `465`) |
+| `RESEND_API_KEY`                                     |    ❌    | Alternative: [Resend](https://resend.com) key — only sends to others from a domain you have verified there                                                                                          |
+| `EMAIL_FROM`                                         |    ❌    | Sender. SMTP defaults to `Splitlyst <SMTP_USER>` (Gmail requires the account's own address); Resend needs a verified domain                                                                         |
+| `EMAIL_PROVIDER`                                     |    ❌    | Force `smtp` or `resend` when both are set (default: SMTP if configured, else Resend)                                                                                                               |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` |    ❌    | Web push keys — generate with `npx web-push generate-vapid-keys`                                                                                                                                    |
+| `VAPID_SUBJECT`                                      |    ❌    | `mailto:` contact for push services, e.g. `mailto:you@yourdomain.com`                                                                                                                               |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`          |    ❌    | Enables Google sign-in. Redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`                                                                                                                     |
+| `CRON_SECRET`                                        |   ✅\*   | Secret for `/api/cron/recurring`. \*Required for recurring expenses to run                                                                                                                          |
 
 ### Generate a strong secret
 
@@ -240,7 +242,7 @@ DATABASE_URL="postgresql://postgres:password@localhost:5432/splitlyst"
 NEXTAUTH_SECRET="abc123...your-32+-char-random-string"
 NEXTAUTH_URL="http://localhost:3000"
 CRON_SECRET="any-long-random-string"
-# Optional: RESEND_API_KEY / EMAIL_FROM for email, DIRECT_URL for migrations behind a pooler
+# Optional: SMTP_USER / SMTP_PASS (or RESEND_API_KEY / EMAIL_FROM) for email, DIRECT_URL for migrations behind a pooler
 ```
 
 ---
@@ -349,10 +351,10 @@ npm run format:check    # CI mode — exits non-zero if any file differs
 
 ## Testing Connections
 
-Before starting the app, verify that your database and exchange rate API are reachable:
+Before starting the app (and after deploying), verify that everything it depends on is reachable:
 
 ```bash
-npm run test:connections
+npm run test:connections          # database, exchange-rate API and email
 ```
 
 Expected output:
@@ -361,23 +363,36 @@ Expected output:
 Splitlyst — connection tests
 
 1 · Database (PostgreSQL via Prisma)
-  ·  URL: postgresql://...
+  ·  URL: postgresql://user:****@host:6543/postgres
   ✓  Connected  (Xms)
   ✓  Tables reachable — users: 0, groups: 0, expenses: 0
 
 2 · Exchange Rate API (exchangerate-api.com)
-  ·  Key: 068f67**...
+  ·  Key: 068f********...
   ✓  Connected  (Xms)
-  ✓  Base currency: USD
   ✓  Sample rates: EUR=0.87  GBP=0.75  JPY=161  INR=94  CAD=1.42
+
+3 · Email (Gmail/SMTP or Resend)
+  ·  Provider: SMTP (smtp.gmail.com:465, from Splitlyst <you@gmail.com>)
+  ✓  Connected and logged in (nothing was sent)
+  ? Send a real test email too? Enter an address (or press Enter to skip): you@example.com
+  ✓  Sent to you@example.com — check the inbox (and spam)
 
 Summary
   ✓  Database
   ✓  Exchange Rate API
+  ✓  Email
 ```
 
-- If `DATABASE_URL` is wrong, the DB check fails with the exact error.
-- If `EXCHANGE_RATE_API_KEY` is missing, the API check is skipped and the app falls back to hardcoded rates — this is fine for local dev.
+- **Database:** a wrong `DATABASE_URL` fails with the exact error; the password is always masked.
+- **Exchange rates:** without `EXCHANGE_RATE_API_KEY` the check is _skipped_ (the app falls back to hardcoded rates).
+- **Email:** for SMTP it connects and logs in **without sending anything**, then **asks** whether to send a real test
+  message — type an address, or press Enter to skip. Resend has no free login check, so it only proves itself when you
+  send. With no provider configured the check is skipped (links are only shown in local development).
+- **No terminal (CI):** the prompt is skipped automatically, so the run never hangs.
+- Exit code is `1` if any check _failed_ (skipped is fine) and `2` for bad arguments.
+- Each check lives in its own file under `scripts/connections/` (`database.ts`, `exchange-rate.ts`, `email.ts`),
+  orchestrated by `scripts/test-connections.ts`.
 
 ---
 
@@ -495,8 +510,10 @@ DATABASE_URL        = <your Supabase/Neon/Railway connection string>
 NEXTAUTH_SECRET     = <your 32+ char secret>
 NEXTAUTH_URL        = https://your-app.vercel.app
 CRON_SECRET         = <long random string>   # Vercel sends it as "Bearer ..." to the cron route
-RESEND_API_KEY      = <optional, enables email>
-EMAIL_FROM          = <optional, e.g. Splitlyst <noreply@yourdomain.com>>
+SMTP_USER           = <Gmail address that sends the mail>
+SMTP_PASS           = <Gmail app password — not your normal password>
+EMAIL_FROM          = Splitlyst <same Gmail address>   # optional
+# (or RESEND_API_KEY + EMAIL_FROM on a domain verified in Resend)
 ```
 
 `vercel.json` registers a daily cron (`0 6 * * *` UTC) for `/api/cron/recurring`. Cron jobs run only
@@ -631,7 +648,7 @@ splitlyst/
 │   ├── auth.ts                  # NextAuth options (JWT, credentials, currency in token)
 │   ├── calculations.ts          # Split logic + debt simplification
 │   ├── currency.ts              # Exchange rate fetch + convertAmount()
-│   ├── email.ts                 # Resend email sender (no-op when unconfigured)
+│   ├── email.ts                 # Email: Gmail/any SMTP or Resend (no-op when unconfigured)
 │   ├── i18n.ts / use-t.ts       # Translations + `useT()` hook (en, es, fr, de, hi)
 │   ├── notify.ts / push.ts      # In-app notification + web-push fan-out
 │   ├── offline-queue.ts         # Offline expense queue (localStorage, synced on reconnect)
@@ -656,7 +673,8 @@ splitlyst/
 │
 ├── scripts/
 │   ├── generate-icons.js        # SVG → PNG icon generator
-│   └── test-connections.ts      # Verify DB + exchange rate API are reachable
+│   ├── test-connections.ts      # Runs the connection checks (db, exchange rate, email)
+│   └── connections/             # One module per check + shared helpers
 │
 ├── e2e/                         # Playwright browser tests (auth, money, security, features)
 ├── playwright.config.ts         # Builds + serves the app on :3100 for E2E
@@ -867,8 +885,15 @@ Run `npx playwright install chromium`. If port 3100 is busy, stop the other proc
 
 ### Password reset email never arrives
 
-Set `RESEND_API_KEY` and `EMAIL_FROM` (a sender verified in Resend). Without them, the reset link is
-only returned in local development and nothing is sent in production.
+Check which provider is active and send yourself a test: `npm run test:connections` (the email step asks for the address)
+(it prints the provider and the failure reason, never the password).
+
+- **Gmail SMTP (free):** turn on 2-Step Verification, create an _App password_, and set `SMTP_USER` and `SMTP_PASS`.
+  `535 Username and Password not accepted` means a wrong/expired app password (spaces are fine) or 2-Step Verification is off.
+  Gmail sends at most ~500 emails a day and always sends _from_ the account's own address.
+- **Resend:** only sends to other people from a domain you verified in Resend; the `onboarding@resend.dev` test
+  sender only reaches your own address.
+- With nothing configured, the reset link is only returned in local development and nothing is sent in production.
 
 ### Recurring expenses are not created
 

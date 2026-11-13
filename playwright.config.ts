@@ -40,6 +40,12 @@ export default defineConfig({
       NEXT_PUBLIC_APP_URL: BASE_URL,
       RESEND_API_KEY: '',
       EMAIL_FROM: '',
+      // Dummy Google credentials: enough for the button to appear; tests intercept the redirect
+      GOOGLE_CLIENT_ID: 'e2e-google-client-id',
+      GOOGLE_CLIENT_SECRET: 'e2e-google-client-secret',
+      SMTP_USER: '',
+      SMTP_PASS: '',
+      EMAIL_PROVIDER: '',
       CRON_SECRET: 'e2e-cron-secret',
     },
   },
