@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/components/ui/toaster';
 import { Spinner } from '@/components/ui/loading';
+import { GoogleButton } from '@/components/auth/google-button';
 
 const schema = z
   .object({
@@ -146,6 +147,8 @@ export default function RegisterPage() {
           {isSubmitting ? <Spinner className="h-4 w-4" /> : 'Create account'}
         </button>
       </form>
+
+      <GoogleButton callbackUrl="/dashboard" />
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Already have an account?{' '}
