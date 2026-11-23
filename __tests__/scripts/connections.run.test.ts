@@ -2,8 +2,12 @@
 const mockDb = jest.fn();
 const mockFx = jest.fn();
 const mockEmail = jest.fn();
+const mockRateLimit = jest.fn();
 jest.mock('../../scripts/connections/database', () => ({ checkDatabase: () => mockDb() }));
 jest.mock('../../scripts/connections/exchange-rate', () => ({ checkExchangeRate: () => mockFx() }));
+jest.mock('../../scripts/connections/rate-limit', () => ({
+  checkRateLimit: () => mockRateLimit(),
+}));
 jest.mock('../../scripts/connections/email', () => ({ checkEmail: (o: unknown) => mockEmail(o) }));
 
 import { printSummary, runChecks } from '../../scripts/connections/run';
@@ -17,6 +21,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ name: 'Exchange Rate API', status: 'skipped', note: 'no key' });
   mockEmail.mockReset().mockResolvedValue({ name: 'Email', status: 'ok' });
+  mockRateLimit.mockReset().mockResolvedValue({ name: 'Rate limiting', status: 'ok' });
 });
 afterEach(() => jest.restoreAllMocks());
 
@@ -25,6 +30,13 @@ describe('runChecks', () => {
     const results = await runChecks(['email', 'database']);
     expect(results.map((r) => r.name)).toEqual(['Email', 'Database']);
     expect(mockFx).not.toHaveBeenCalled();
+  });
+
+  it('runs the rate-limit check and labels it in the output', async () => {
+    const log = jest.spyOn(console, 'log');
+    const results = await runChecks(['rate-limit']);
+    expect(results).toEqual([{ name: 'Rate limiting', status: 'ok' }]);
+    expect(log.mock.calls.flat().join('\n')).toContain('Rate limiting (Redis)');
   });
 
   it('hands the prompt to the email check so it can ask where to send a test', async () => {

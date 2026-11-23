@@ -10,7 +10,7 @@ export interface CheckResult {
   note?: string;
 }
 
-export const TARGETS = ['database', 'exchange-rate', 'email'] as const;
+export const TARGETS = ['database', 'exchange-rate', 'email', 'rate-limit'] as const;
 export type Target = (typeof TARGETS)[number];
 
 export interface ParsedArgs {
@@ -35,7 +35,9 @@ Runs every check, in order:
   database        PostgreSQL via Prisma
   exchange-rate   exchangerate-api.com
   email           Gmail/SMTP or Resend. Verifies the login without sending anything,
-                  then asks whether you want a real test email (type an address, or Enter to skip).`;
+                  then asks whether you want a real test email (type an address, or Enter to skip).
+  rate-limit      Redis (REDIS_URL), used to share rate-limit counters between servers.
+                  Skipped when REDIS_URL is not set.`;
 
 /** Loose check that a typed string looks like an email address. */
 export function isEmailAddress(value: string): boolean {
@@ -72,6 +74,15 @@ export function maskKey(key: string): string {
   return key.length > 10
     ? `${key.slice(0, 4)}${'*'.repeat(key.length - 4)}`
     : '*'.repeat(key.length);
+}
+
+/**
+ * Hide the password in a connection string (PostgreSQL, Redis, ...) before printing it. The password
+ * may itself contain an "@" (the pg driver accepts that), so everything up to the LAST "@" is treated
+ * as the password. A URL without credentials is returned unchanged.
+ */
+export function maskUrl(url: string): string {
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/[^:/@]*:)(.*)@([^@]*)$/i, '$1****@$3');
 }
 
 /** 0 when nothing failed (skipped checks are fine), 1 otherwise. */

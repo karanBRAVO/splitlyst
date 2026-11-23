@@ -23,14 +23,23 @@ jest.mock('nodemailer', () => ({
   createTransport: () => ({ sendMail: mockSendMail, verify: mockVerify }),
 }));
 
-import { checkDatabase, maskUrl } from '../../scripts/connections/database';
+const mockVerifyStore = jest.fn();
+const mockCloseStore = jest.fn();
+jest.mock('../../lib/rate-limit', () => ({
+  verifyRateLimitStore: () => mockVerifyStore(),
+  closeRateLimitStore: () => mockCloseStore(),
+}));
+
+import { checkDatabase } from '../../scripts/connections/database';
 import { checkEmail } from '../../scripts/connections/email';
 import { checkExchangeRate } from '../../scripts/connections/exchange-rate';
+import { checkRateLimit } from '../../scripts/connections/rate-limit';
 import {
   exitCodeFor,
   isEmailAddress,
   loadEnv,
   maskKey,
+  maskUrl,
   parseArgs,
   type CheckResult,
 } from '../../scripts/connections/shared';
@@ -48,6 +57,7 @@ beforeEach(() => {
     'RESEND_API_KEY',
     'EMAIL_FROM',
     'EMAIL_PROVIDER',
+    'REDIS_URL',
     'SMTP_HOST',
     'SMTP_PORT',
     'SMTP_USER',
@@ -57,6 +67,8 @@ beforeEach(() => {
   mockQueryRaw.mockReset().mockResolvedValue([{ ping: 1 }]);
   mockCount.mockReset().mockResolvedValue(3);
   mockDisconnect.mockReset();
+  mockVerifyStore.mockReset().mockResolvedValue({ backend: 'redis', ok: true, ms: 4 });
+  mockCloseStore.mockReset();
   mockSendMail.mockReset().mockResolvedValue({});
   mockVerify.mockReset().mockResolvedValue(true);
   resetEmailTransport();
@@ -327,5 +339,57 @@ describe('checkEmail', () => {
 
     await checkEmail({ prompt: answering('me@example.com') });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('checkRateLimit', () => {
+  it('is skipped (not failed) without REDIS_URL, because limits then live in memory', async () => {
+    const result = await checkRateLimit();
+    expect(result.status).toBe('skipped');
+    expect(result.note).toContain('per-instance');
+    expect(mockVerifyStore).not.toHaveBeenCalled();
+    expect(output()).toContain('REDIS_URL not set');
+  });
+
+  it('passes when Redis is reachable and writable', async () => {
+    process.env.REDIS_URL = 'redis://localhost:6379';
+    expect(await checkRateLimit()).toEqual({ name: 'Rate limiting', status: 'ok' });
+    expect(output()).toContain('Connected and writable');
+    expect(output()).toContain('(4 ms)');
+  });
+
+  it('fails with the reason when the check fails', async () => {
+    process.env.REDIS_URL = 'redis://localhost:6379';
+    mockVerifyStore.mockResolvedValue({
+      backend: 'redis',
+      ok: false,
+      error: 'Error: connect ECONNREFUSED 127.0.0.1:6379',
+    });
+    const result = await checkRateLimit();
+    expect(result).toMatchObject({ status: 'fail', note: expect.stringContaining('ECONNREFUSED') });
+    expect(output()).toContain('Redis check failed');
+  });
+
+  it('masks the password in the URL it prints', async () => {
+    process.env.REDIS_URL = 'rediss://default:s3cr3t-pass@redis.example.com:6379';
+    await checkRateLimit();
+    expect(output()).toContain('rediss://default:****@redis.example.com:6379');
+    expect(output()).not.toContain('s3cr3t-pass');
+  });
+
+  it('prints a URL without credentials unchanged', async () => {
+    process.env.REDIS_URL = 'redis://localhost:6379';
+    await checkRateLimit();
+    expect(output()).toContain('URL: redis://localhost:6379');
+  });
+
+  it('always closes the connection so the script can exit, even when the check throws', async () => {
+    process.env.REDIS_URL = 'redis://localhost:6379';
+    await checkRateLimit();
+    expect(mockCloseStore).toHaveBeenCalledTimes(1);
+
+    mockVerifyStore.mockRejectedValue(new Error('unexpected'));
+    await expect(checkRateLimit()).rejects.toThrow('unexpected');
+    expect(mockCloseStore).toHaveBeenCalledTimes(2);
   });
 });
