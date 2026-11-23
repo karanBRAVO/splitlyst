@@ -8,7 +8,7 @@ import { escapeHtml, isEmailConfigured, sendEmail } from '@/lib/email';
 const schema = z.object({ email: z.string().email() });
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(`forgot:${clientIp(req)}`, 5, 900000);
+  const limited = await rateLimit(`forgot:${clientIp(req)}`, 5, 900000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again later.' },

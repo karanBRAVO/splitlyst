@@ -46,6 +46,8 @@ export default defineConfig({
       SMTP_USER: '',
       SMTP_PASS: '',
       EMAIL_PROVIDER: '',
+      // In-memory limits unless a Redis is requested explicitly: E2E_REDIS_URL=redis://localhost:6379
+      REDIS_URL: process.env.E2E_REDIS_URL ?? '',
       CRON_SECRET: 'e2e-cron-secret',
     },
   },

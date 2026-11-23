@@ -1,14 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { type CheckResult, errorMessage, out } from './shared';
-
-/**
- * Hide the password in a connection string before printing it. The password may itself contain an
- * "@" (the pg driver accepts that), so everything up to the LAST "@" is treated as the password.
- */
-export function maskUrl(url: string): string {
-  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/[^:/@]*:)(.*)@([^@]*)$/i, '$1****@$3');
-}
+import { type CheckResult, errorMessage, maskUrl, out } from './shared';
 
 /** Connect, ping, and count the core tables so a missing schema is caught too. */
 export async function checkDatabase(): Promise<CheckResult> {

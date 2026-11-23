@@ -1,4 +1,4 @@
-/* Checks that Splitlyst can reach what it depends on: the database, the exchange-rate API and email.
+/* Checks that Splitlyst can reach what it depends on: the database, the exchange-rate API, email and Redis.
  *
  *   npm run test:connections           # runs every check; the email check asks where to send a test
  *

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const session = await getAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const limited = rateLimit(`2fa:${session.user.id}:${clientIp(req)}`, 10, 15 * 60 * 1000);
+  const limited = await rateLimit(`2fa:${session.user.id}:${clientIp(req)}`, 10, 15 * 60 * 1000);
   if (!limited.ok) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
   }
