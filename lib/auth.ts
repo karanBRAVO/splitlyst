@@ -4,10 +4,38 @@ import GoogleProvider from 'next-auth/providers/google';
 import { compare, hash } from 'bcryptjs';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
+import {
+  rateLimitClear,
+  rateLimitRecord,
+  rateLimitStatus,
+  type RateLimitResult,
+} from '@/lib/rate-limit';
 import { hashRecoveryCode, verifyTotp } from '@/lib/totp';
 
 export const TOTP_REQUIRED = 'TOTP_REQUIRED';
 export const TOTP_INVALID = 'Invalid authentication code';
+
+// Failed sign-ins are counted per email and per IP. A successful sign-in resets the email counter.
+export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+export const LOGIN_MAX_FAILURES_PER_EMAIL = 10;
+export const LOGIN_MAX_FAILURES_PER_IP = 30;
+
+// The email is hashed so addresses never sit in plain text in the (possibly shared) rate-limit store.
+const loginKeys = (email: string, ip: string | null) => ({
+  email: `login:email:${crypto.createHash('sha256').update(email).digest('hex').slice(0, 32)}`,
+  ip: ip ? `login:ip:${ip}` : null,
+});
+
+function forwardedIp(headers: Record<string, unknown> | undefined): string | null {
+  const raw = headers?.['x-forwarded-for'] ?? headers?.['x-real-ip'];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === 'string' ? value.split(',')[0].trim() || null : null;
+}
+
+export function tooManyAttemptsMessage({ retryAfterSec }: RateLimitResult) {
+  const minutes = Math.max(1, Math.ceil(retryAfterSec / 60));
+  return `Too many failed sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+}
 
 const googleEnabled = !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET;
 
@@ -29,19 +57,36 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
         totp: { label: 'Authentication code', type: 'text' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Email and password are required');
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
-        });
+        const email = credentials.email.toLowerCase();
+        const keys = loginKeys(email, forwardedIp(req?.headers));
 
-        if (!user) throw new Error('No account found with this email');
+        // Refuse before doing any work (password hashing is expensive) once an account or IP is locked.
+        for (const key of [keys.email, keys.ip]) {
+          if (!key) continue;
+          const limit =
+            key === keys.email ? LOGIN_MAX_FAILURES_PER_EMAIL : LOGIN_MAX_FAILURES_PER_IP;
+          const status = await rateLimitStatus(key, limit, LOGIN_WINDOW_MS);
+          if (!status.ok) throw new Error(tooManyAttemptsMessage(status));
+        }
+
+        const fail = async (message: string): Promise<never> => {
+          await Promise.all(
+            [keys.email, keys.ip].map((key) => key && rateLimitRecord(key, LOGIN_WINDOW_MS)),
+          );
+          throw new Error(message);
+        };
+
+        const user = await prisma.user.findUnique({ where: { email } });
+
+        if (!user) return fail('No account found with this email');
 
         const isValid = await compare(credentials.password, user.password);
-        if (!isValid) throw new Error('Incorrect password');
+        if (!isValid) return fail('Incorrect password');
 
         if (user.totpEnabled && user.totpSecret) {
           const code = credentials.totp?.trim();
@@ -60,8 +105,10 @@ export const authOptions: NextAuthOptions = {
               ok = true;
             }
           }
-          if (!ok) throw new Error(TOTP_INVALID);
+          if (!ok) return fail(TOTP_INVALID);
         }
+
+        await rateLimitClear(keys.email);
 
         return {
           id: user.id,
