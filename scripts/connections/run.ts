@@ -1,12 +1,14 @@
 import { checkDatabase } from './database';
 import { type Prompt, checkEmail } from './email';
 import { checkExchangeRate } from './exchange-rate';
+import { checkRateLimit } from './rate-limit';
 import { type CheckResult, type Target, out } from './shared';
 
 const LABELS: Record<Target, string> = {
   database: 'Database (PostgreSQL via Prisma)',
   'exchange-rate': 'Exchange Rate API (exchangerate-api.com)',
   email: 'Email (Gmail/SMTP or Resend)',
+  'rate-limit': 'Rate limiting (Redis)',
 };
 
 /**
@@ -21,6 +23,7 @@ export async function runChecks(
     database: checkDatabase,
     'exchange-rate': checkExchangeRate,
     email: () => checkEmail({ prompt: opts.prompt }),
+    'rate-limit': checkRateLimit,
   };
 
   const results: CheckResult[] = [];

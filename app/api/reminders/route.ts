@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   // One reminder per person per hour
-  const limited = rateLimit(`remind:${session.user.id}:${userId}`, 1, 60 * 60 * 1000);
+  const limited = await rateLimit(`remind:${session.user.id}:${userId}`, 1, 60 * 60 * 1000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: 'You already sent a reminder recently. Try again later.' },
